@@ -14,7 +14,7 @@ link_directories(${GTK3_LIBRARY_DIRS})
 add_definitions(${GTK3_CFLAGS_DIRS})
 
 include(GResource)
-add_gresource(${CMAKE_CURRENT_SOURCE_DIR}/ui grapheditor.gresource.xml
+add_gresource(${CMAKE_CURRENT_SOURCE_DIR}/ui graphicseditor.gresource.xml
         ${CMAKE_CURRENT_BINARY_DIR} UI_RESOURCES)
 	
 file(GLOB_RECURSE SOURCES "src/*.c")

@@ -25,7 +25,7 @@ static void
 graphicseditor_window_class_init (GraphicsEditorWindowClass *class)
 {
 	gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class),
-			"/by/jylilov/grapheditor/window.ui");
+			"/by/jylilov/graphicseditor/window.xml");
 }
 
 GraphicsEditorWindow *

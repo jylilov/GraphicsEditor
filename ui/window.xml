@@ -4,5 +4,10 @@
 		<property name="title">Graph Editor</property>
 		<property name="default-width">800</property>
 		<property name="default-height">600</property>
-		</template>
+		<child>
+			<object id="drawing_pane" class="DrawingPane">
+				<property name="visible">true</property>
+			</object>
+    	</child>
+	</template>
 </interface>

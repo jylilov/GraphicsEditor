@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+	<template class="DrawingPane" parent="GtkFrame">
+		<child>
+			<object id="scrolled_window" class="GtkScrolledWindow">
+				<property name="visible">true</property>
+				<child>
+					<object id="viewport" class="GtkViewport">
+						<property name="visible">true</property>
+						<child>
+							<object id="fixed" class="GtkFixed">
+								<property name="visible">true</property>
+								<child>
+									<object id="drawing_area" class="GtkDrawingArea">
+										<property name="visible">true</property>
+										<property name="width_request">500</property>
+					                   	<property name="height_request">500</property>
+									</object>
+								</child>
+							</object>
+						</child>
+					</object>
+				</child>
+			</object>
+		</child>
+	</template>
+</interface>
