@@ -12,6 +12,8 @@
 								<property name="visible">true</property>
 								<child>
 									<object id="drawing_area" class="GtkDrawingArea">
+										<signal name="draw" handler="draw_handler"/>
+										<signal name="configure-event" handler="configure_event_handler"/>
 										<property name="visible">true</property>
 										<property name="width_request">500</property>
 					                   	<property name="height_request">500</property>

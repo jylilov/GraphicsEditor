@@ -21,4 +21,4 @@ file(GLOB_RECURSE SOURCES "src/*.c")
 file(GLOB_RECURSE HEADERS "src/*.h")
 
 add_executable(graphics_editor ${SOURCES} ${HEADERS} ${UI_RESOURCES})
-target_link_libraries(graphics_editor ${GTK3_LIBRARIES})
+target_link_libraries(graphics_editor ${GTK3_LIBRARIES} m)

@@ -1,4 +1,5 @@
 #include "drawingpane.h"
+#include "drawutils.h"
 
 #include <gtk/gtk.h>
 
@@ -40,7 +41,9 @@ drawing_pane_class_init (DrawingPaneClass *class)
 {
 	gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class),
 			"/by/jylilov/graphicseditor/drawing_pane.xml");
-	//gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), DrawingPane, drawing_area);
+	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), DrawingPane, drawing_area);
+	gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), draw_handler);
+	gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), configure_event_handler);
 }
 
 DrawingPane *
