@@ -3,8 +3,8 @@
 #include <math.h>
 #include <gtk/gtk.h>
 
-static gint height = 20;
-static gint width = 20;
+static gint height = 100;
+static gint width = 100;
 static gint cell_size = 1;
 
 static void draw_net(cairo_t* cr) {
@@ -28,10 +28,14 @@ static void draw_net(cairo_t* cr) {
 	cairo_fill(cr);
 }
 
-static void draw_pixel(cairo_t* cr, gint x, gint y) {
-	cairo_set_source_rgb(cr, 0, 0, 0);
+static void draw_pixel_with_alpha(cairo_t* cr, gint x, gint y, gdouble alpha) {
+	cairo_set_source_rgb(cr, 1 - alpha, 1 - alpha, 1 - alpha);
 	cairo_rectangle(cr, x * cell_size, y * cell_size, cell_size, cell_size);
 	cairo_fill(cr);
+}
+
+static void draw_pixel(cairo_t* cr, gint x, gint y) {
+	draw_pixel_with_alpha(cr, x, y, 1);
 }
 
 static gint sign(gdouble x) {
@@ -116,9 +120,66 @@ static void draw_line2(cairo_t* cr, gint x1, gint y1, gint x2, gint y2) {
 
 }
 
+static void draw_line3(cairo_t* cr, gint x1, gint y1, gint x2, gint y2) {
+	gint dx = x2 - x1;
+	gint dy = y2 - y1;
+
+	gdouble e;
+
+	gdouble alpha, temp;
+
+	if (abs(dx) > abs(dy)) {
+		if (x1 > x2) {
+			swap(&x1, &x2);
+			swap(&y1, &y2);
+		}
+
+		e = (gdouble) dy / dx;
+
+		gint x;
+		gdouble y;
+
+		for (x = x1, y = y1; x <= x2; ++x) {
+			alpha = modf(y, &temp);
+
+			if (sign(e) < 0) alpha = 1 - alpha;
+
+			draw_pixel_with_alpha(cr, x, floor(y), 1 - alpha);
+			draw_pixel_with_alpha(cr, x, floor(y) + sign(e), alpha);
+
+			y += e;
+		}
+	} else {
+		if (y1 > y2) {
+			swap(&x1, &x2);
+			swap(&y1, &y2);
+		}
+
+		e = (gdouble)dx / dy;
+
+		gint y;
+		gdouble x;
+
+		for (x = x1, y = y1; y <= y2; ++y) {
+			alpha = modf(x, &temp);
+
+			if (sign(e) < 0) alpha = 1 - alpha;
+
+			draw_pixel_with_alpha(cr, floor(x), y, 1 - alpha);
+			draw_pixel_with_alpha(cr, floor(x) + sign(e), y, alpha);
+
+			x += e;
+		}
+	}
+
+}
+
+
+
 gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 {
-	draw_line1(cr, 0, 0, 5, 2);
+	draw_line3(cr, 100, 20, 0, 0);
+	draw_line2(cr, 100, 50, 0, 30);
 	draw_net(cr);
 
 	return FALSE;
