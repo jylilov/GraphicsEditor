@@ -27,7 +27,10 @@ graphicseditor_activate (GApplication *app)
 	GraphicsEditorWindow *win;
 
 	win = graphicseditor_window_new (GRAPHICSEDITOR (app));
+
 	gtk_window_present (GTK_WINDOW (win));
+
+	set_graphicsedior_window(win);
 }
 
 static void

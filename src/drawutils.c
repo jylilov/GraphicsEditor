@@ -1,11 +1,13 @@
 #include "drawutils.h"
 
 #include <math.h>
-#include <gtk/gtk.h>
 
 static gint height = 100;
 static gint width = 100;
 static gint cell_size = 1;
+
+static gint drawing_mode = 0;
+static GraphicsEditorWindow *graphicseditor_window = NULL;
 
 static void draw_net(cairo_t* cr) {
 	gint net_size = cell_size / 10;
@@ -180,6 +182,7 @@ gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 {
 	draw_line3(cr, 100, 20, 0, 0);
 	draw_line2(cr, 100, 50, 0, 30);
+	draw_line1(cr, 100, 80, 0, 60);
 	draw_net(cr);
 
 	return FALSE;
@@ -191,4 +194,16 @@ gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, g
 
 	return TRUE;
 }
+
+void set_drawing_mode(gint mode) {
+	drawing_mode = mode;
+	if (graphicseditor_window) {
+		graphicseditor_window_set_drawing_mode(graphicseditor_window, mode);
+	}
+}
+
+void set_graphicsedior_window(GraphicsEditorWindow *ge_window) {
+	graphicseditor_window = ge_window;
+}
+
 

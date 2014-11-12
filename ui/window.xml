@@ -89,11 +89,26 @@
 								<property name="visible">true</property>
 								<child>
 									<object class="GtkToolItemGroup" id="sample_tool_group">
-										<property name="label">Sample tool group</property>
+										<property name="label">Lines</property>
 										<property name="visible">true</property>
 										<child>
-											<object class="GtkToggleToolButton" id="sample_tool_button">
-												<property name="label">Sample tool button</property>
+											<object class="GtkToggleToolButton" id="tool_button_line_dda">
+												<signal name="toggled" handler="tool_button_line_dda_toggled" />
+												<property name="label">DDA-line algorithm</property>
+												<property name="visible">true</property>
+											</object>
+										</child>
+										<child>
+											<object class="GtkToggleToolButton" id="tool_button_line_bresenham">
+												<signal name="toggled" handler="tool_button_line_bresenham_toggled" />
+												<property name="label">Bresenham's line algorithm</property>
+												<property name="visible">true</property>
+											</object>
+										</child>
+										<child>
+											<object class="GtkToggleToolButton" id="tool_button_line_wu">
+												<signal name="toggled" handler="tool_button_line_wu_toggled" />
+												<property name="label">Xiaolin Wu's line algorithm</property>
 												<property name="visible">true</property>
 											</object>
 										</child>

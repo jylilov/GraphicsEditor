@@ -13,5 +13,6 @@ typedef struct _GraphicsEditorWindowClass GraphicsEditorWindowClass;
 
 GType graphicseditor_window_get_type (void);
 GraphicsEditorWindow *graphicseditor_window_new (GraphicsEditor *app);
+void graphicseditor_window_set_drawing_mode(GraphicsEditorWindow *app, gint mode);
 
 #endif /* __GRAPHICSEDITORWIN_H */
