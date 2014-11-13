@@ -13,7 +13,6 @@
 gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data);
 gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, gpointer data);
 
-void set_drawing_mode(gint mode);
-void set_graphicsedior_window(GraphicsEditorWindow *ge_window);
+void drawutils_set_drawing_mode(gint mode);
 
 #endif /* __DRAWUTILS_H */

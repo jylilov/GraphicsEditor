@@ -93,21 +93,21 @@
 										<property name="visible">true</property>
 										<child>
 											<object class="GtkToggleToolButton" id="tool_button_line_dda">
-												<signal name="toggled" handler="tool_button_line_dda_toggled" />
+												<property name="action-name">app.drawing-mode.line-dda</property>
 												<property name="label">DDA-line algorithm</property>
 												<property name="visible">true</property>
 											</object>
 										</child>
 										<child>
 											<object class="GtkToggleToolButton" id="tool_button_line_bresenham">
-												<signal name="toggled" handler="tool_button_line_bresenham_toggled" />
+												<property name="action-name">app.drawing-mode.line-bresenham</property>
 												<property name="label">Bresenham's line algorithm</property>
 												<property name="visible">true</property>
 											</object>
 										</child>
 										<child>
 											<object class="GtkToggleToolButton" id="tool_button_line_wu">
-												<signal name="toggled" handler="tool_button_line_wu_toggled" />
+												<property name="action-name">app.drawing-mode.line-wu</property>
 												<property name="label">Xiaolin Wu's line algorithm</property>
 												<property name="visible">true</property>
 											</object>

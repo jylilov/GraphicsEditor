@@ -2,12 +2,11 @@
 
 #include <math.h>
 
-static gint height = 100;
-static gint width = 100;
+static gint height = 500;
+static gint width = 500;
 static gint cell_size = 1;
 
 static gint drawing_mode = 0;
-static GraphicsEditorWindow *graphicseditor_window = NULL;
 
 static void draw_net(cairo_t* cr) {
 	gint net_size = cell_size / 10;
@@ -195,15 +194,6 @@ gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, g
 	return TRUE;
 }
 
-void set_drawing_mode(gint mode) {
+void drawutils_set_drawing_mode(gint mode) {
 	drawing_mode = mode;
-	if (graphicseditor_window) {
-		graphicseditor_window_set_drawing_mode(graphicseditor_window, mode);
-	}
 }
-
-void set_graphicsedior_window(GraphicsEditorWindow *ge_window) {
-	graphicseditor_window = ge_window;
-}
-
-
