@@ -198,6 +198,10 @@ static void draw_line3(cairo_t* cr, gint x1, gint y1, gint x2, gint y2) {
 
 gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 {
+	cairo_set_source_rgb(cr, 1, 1, 1);
+	cairo_rectangle(cr, 0, 0, width * cell_size, height * cell_size);
+	cairo_fill(cr);
+
 	GSList *list;
 	Line *line;
 
