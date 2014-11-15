@@ -141,6 +141,11 @@ static void draw_line3(cairo_t* cr, gint x1, gint y1, gint x2, gint y2) {
 	gint dx = x2 - x1;
 	gint dy = y2 - y1;
 
+	if (dx == 0 || dy == 0) {
+		draw_line2(cr, x1, y1, x2, y2);
+		return;
+	}
+
 	gdouble e;
 
 	gdouble alpha, temp;
