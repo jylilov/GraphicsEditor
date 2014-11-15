@@ -13,8 +13,8 @@ struct _Line {
 	Point p1, p2;
 };
 
-static gint height = 500;
-static gint width = 500;
+static gint height;
+static gint width;
 static gint cell_size = 1;
 
 static gint drawing_mode = 0;
@@ -316,5 +316,11 @@ gint drawutils_get_height() {
 
 gint drawutils_get_cell_size() {
 	return cell_size;
+}
+
+void drawutils_init(GtkDrawingArea *drawing_area, gint area_width, gint area_height) {
+	width = area_width;
+	height = area_height;
+	gtk_widget_set_size_request(GTK_WIDGET(drawing_area), area_width, area_height);
 }
 

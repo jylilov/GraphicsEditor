@@ -15,7 +15,8 @@ gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, g
 gboolean button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data);
 gboolean motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data);
 
-void drawutils_set_drawing_mode(gint mode);\
+void drawutils_init(GtkDrawingArea *pane, gint area_width, gint area_height);
+void drawutils_set_drawing_mode(gint mode);
 gint drawutils_get_width();
 gint drawutils_get_height();
 gint drawutils_get_cell_size();

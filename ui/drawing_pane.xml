@@ -19,8 +19,6 @@
 										<signal name="motion-notify-event" handler="motion_notify_event_handler"/>
 										<signal name="button-press-event" handler="button_press_event_handler"/>
 										<property name="visible">true</property>
-										<property name="width_request">500</property>
-					                   	<property name="height_request">500</property>
 									</object>
 								</child>
 							</object>

@@ -106,6 +106,8 @@ drawing_pane_init (DrawingPane *pane)
 
 	priv = drawing_pane_get_instance_private(pane);
 
+	drawutils_init(priv->drawing_area, 1024, 768);
+
 	gtk_widget_set_events (GTK_WIDGET(priv->drawing_area), gtk_widget_get_events (GTK_WIDGET(priv->drawing_area))
 			| GDK_SCROLL_MASK
 			| GDK_POINTER_MOTION_MASK
