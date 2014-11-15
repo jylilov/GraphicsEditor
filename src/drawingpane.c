@@ -107,7 +107,9 @@ drawing_pane_init (DrawingPane *pane)
 	priv = drawing_pane_get_instance_private(pane);
 
 	gtk_widget_set_events (GTK_WIDGET(priv->drawing_area), gtk_widget_get_events (GTK_WIDGET(priv->drawing_area))
-								 | GDK_SCROLL_MASK);
+			| GDK_SCROLL_MASK
+			| GDK_POINTER_MOTION_MASK
+			| GDK_BUTTON_PRESS_MASK);
 }
 
 static void
@@ -121,6 +123,8 @@ drawing_pane_class_init (DrawingPaneClass *class)
 	gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), configure_event_handler);
 	gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), drawing_area_scroll_event_handler);
 	gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), scrolled_window_scroll_event_handler);
+	gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), button_press_event_handler);
+	gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), motion_notify_event_handler);
 }
 
 DrawingPane *

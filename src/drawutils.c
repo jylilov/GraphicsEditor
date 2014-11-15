@@ -2,11 +2,27 @@
 
 #include <math.h>
 
+typedef struct _Point Point;
+typedef struct _Line Line;
+
+struct _Point {
+	gint x, y;
+};
+
+struct _Line {
+	Point p1, p2;
+};
+
 static gint height = 500;
 static gint width = 500;
 static gint cell_size = 1;
 
 static gint drawing_mode = 0;
+
+static GSList *dda_lines;
+static GSList *bresenham_lines;
+static GSList *wu_lines;
+static Line *current_line = NULL;
 
 static void draw_net(cairo_t* cr) {
 	gint net_size = cell_size / 7;
@@ -175,15 +191,47 @@ static void draw_line3(cairo_t* cr, gint x1, gint y1, gint x2, gint y2) {
 
 }
 
-
-
 gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 {
-	draw_line3(cr, 100, 20, 0, 0);
-	draw_line2(cr, 100, 50, 0, 30);
-	draw_line1(cr, 100, 80, 0, 60);
-	draw_net(cr);
+	GSList *list;
+	Line *line;
 
+	list = dda_lines;
+	while (list != NULL) {
+		line = list->data;
+		draw_line1(cr, line->p1.x, line->p1.y, line->p2.x, line->p2.y);
+		list = g_slist_next(list);
+	}
+
+	list = bresenham_lines;
+	while (list != NULL) {
+		line = list->data;
+		draw_line2(cr, line->p1.x, line->p1.y, line->p2.x, line->p2.y);
+		list = g_slist_next(list);
+	}
+
+	list = wu_lines;
+	while (list != NULL) {
+		line = list->data;
+		draw_line3(cr, line->p1.x, line->p1.y, line->p2.x, line->p2.y);
+		list = g_slist_next(list);
+	}
+
+	if (current_line != NULL) {
+		switch(drawing_mode) {
+		case DRAWING_MODE_LINE_DDA:
+			draw_line1(cr, current_line->p1.x, current_line->p1.y, current_line->p2.x, current_line->p2.y);
+			break;
+		case DRAWING_MODE_LINE_BRESENHAM:
+			draw_line2(cr, current_line->p1.x, current_line->p1.y, current_line->p2.x, current_line->p2.y);
+			break;
+		case DRAWING_MODE_LINE_WU:
+			draw_line3(cr, current_line->p1.x, current_line->p1.y, current_line->p2.x, current_line->p2.y);
+			break;
+		}
+	}
+
+	draw_net(cr);
 	return FALSE;
 }
 
@@ -194,8 +242,63 @@ gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, g
 	return TRUE;
 }
 
+static void clear_current_line(void)
+{
+	if (current_line != NULL) {
+		free(current_line);
+		current_line = NULL;
+	}
+}
+
+static void add_line(Line *line) {
+	switch (drawing_mode) {
+	case DRAWING_MODE_LINE_DDA:
+		dda_lines = g_slist_append(dda_lines, line);
+		break;
+	case DRAWING_MODE_LINE_BRESENHAM:
+		bresenham_lines = g_slist_append(bresenham_lines, line);
+		break;
+	case DRAWING_MODE_LINE_WU:
+		wu_lines = g_slist_append(wu_lines, line);
+		break;
+	}
+}
+
+gboolean button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data)
+{
+	switch (drawing_mode) {
+	case DRAWING_MODE_LINE_DDA:
+	case DRAWING_MODE_LINE_BRESENHAM:
+	case DRAWING_MODE_LINE_WU:
+		if (current_line == NULL) {
+			current_line = malloc(sizeof(Line));
+			current_line->p1.x = current_line->p2.x = floor(event->x / cell_size);
+			current_line->p1.y = current_line->p2.y = floor(event->y / cell_size);
+		} else {
+			add_line(current_line);
+			current_line = NULL;
+			gtk_widget_queue_draw(widget);
+		}
+		break;
+	case DRAWING_MODE_NONE:
+		clear_current_line();
+		break;
+	}
+	return TRUE;
+}
+gboolean motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data)
+{
+	if (current_line != NULL) {
+		current_line->p2.x = event->x / cell_size;
+		current_line->p2.y = event->y / cell_size;
+		gtk_widget_queue_draw(widget);
+	}
+	return TRUE;
+}
+
 void drawutils_set_drawing_mode(gint mode) {
 	drawing_mode = mode;
+	clear_current_line();
 }
 
 gint drawutils_get_width() {
