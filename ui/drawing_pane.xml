@@ -3,6 +3,7 @@
 	<template class="DrawingPane" parent="GtkFrame">
 		<child>
 			<object id="scrolled_window" class="GtkScrolledWindow">
+				<signal name="scroll-event" handler="scrolled_window_scroll_event_handler"/>
 				<property name="visible">true</property>
 				<child>
 					<object id="viewport" class="GtkViewport">
@@ -14,6 +15,7 @@
 									<object id="drawing_area" class="GtkDrawingArea">
 										<signal name="draw" handler="draw_handler"/>
 										<signal name="configure-event" handler="configure_event_handler"/>
+										<signal name="scroll-event" handler="drawing_area_scroll_event_handler"/>
 										<property name="visible">true</property>
 										<property name="width_request">500</property>
 					                   	<property name="height_request">500</property>

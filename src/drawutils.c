@@ -9,7 +9,7 @@ static gint cell_size = 1;
 static gint drawing_mode = 0;
 
 static void draw_net(cairo_t* cr) {
-	gint net_size = cell_size / 10;
+	gint net_size = cell_size / 7;
 	if (net_size == 0) return;
 
 	cairo_set_source_rgb(cr, 0.75, 0.75, 0.75);
@@ -190,10 +190,23 @@ gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, gpointer data)
 {
 	cell_size = gtk_widget_get_allocated_height(widget) / height;
-
+	gtk_widget_queue_draw(widget);
 	return TRUE;
 }
 
 void drawutils_set_drawing_mode(gint mode) {
 	drawing_mode = mode;
 }
+
+gint drawutils_get_width() {
+	return width;
+}
+
+gint drawutils_get_height() {
+	return height;
+}
+
+gint drawutils_get_cell_size() {
+	return cell_size;
+}
+
