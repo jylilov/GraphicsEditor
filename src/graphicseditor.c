@@ -102,6 +102,8 @@ graphicseditor_startup (GApplication *app)
 
 	g_action_map_add_action_entries(G_ACTION_MAP(app),
 			app_tool_entries, G_N_ELEMENTS(app_tool_entries), app);
+
+	g_object_set (gtk_settings_get_default (), "gtk-application-prefer-dark-theme", TRUE, NULL);
 }
 
 static void

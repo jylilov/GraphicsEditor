@@ -6,23 +6,23 @@
 
 struct _DrawingPane
 {
-	GtkFrame parent;
+	GtkBin parent;
 };
 
 struct _DrawingPaneClass
 {
-	GtkFrameClass parent_class;
+	GtkBinClass parent_class;
 };
 
 typedef struct _DrawingPanePrivate DrawingPanePrivate;
 
 struct _DrawingPanePrivate
 {
-	GtkLayout *drawing_area;
+	GtkDrawingArea *drawing_area;
 	GtkScrolledWindow *scrolled_window;
 };
 
-G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_FRAME);
+G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN);
 
 static gboolean
 scrolled_window_scroll_event_handler(GtkScrolledWindow *widget, GdkEventScroll *event, gpointer user_data)
@@ -107,6 +107,9 @@ drawing_pane_init (DrawingPane *pane)
 	priv = drawing_pane_get_instance_private(pane);
 
 	drawutils_init(priv->drawing_area, 1024, 768);
+
+	gtk_widget_set_valign(GTK_WIDGET(priv->drawing_area), GTK_ALIGN_CENTER);
+	gtk_widget_set_halign(GTK_WIDGET(priv->drawing_area), GTK_ALIGN_CENTER);
 
 	gtk_widget_set_events (GTK_WIDGET(priv->drawing_area), gtk_widget_get_events (GTK_WIDGET(priv->drawing_area))
 			| GDK_SCROLL_MASK

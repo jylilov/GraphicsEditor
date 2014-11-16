@@ -117,9 +117,23 @@
 							</object>
 						</child>
 						<child>
-							<object id="drawing_area" class="DrawingPane">
+							<object class="GtkNotebook" id="notebook">
 								<property name="visible">true</property>
+								<child>
+									<object class="DrawingPane" id="drawing_area">
+										<property name="visible">true</property>
+									</object>
+								</child>
+								<child type="tab">
+									<object class="GtkLabel" id="notebook-tab">
+										<property name="visible">true</property>
+										<property name="label">Tab</property>
+									</object>
+								</child>
 							</object>
+							<!--<object id="drawing_area" class="DrawingPane">
+								<property name="visible">true</property>
+							</object>-->
 						</child>
 					</object>
 				</child>

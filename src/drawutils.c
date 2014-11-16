@@ -254,7 +254,7 @@ gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, g
 static void clear_current_line(void)
 {
 	if (current_line != NULL) {
-		free(current_line);
+		g_free(current_line);
 		current_line = NULL;
 	}
 }
@@ -280,7 +280,7 @@ gboolean button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, 
 	case DRAWING_MODE_LINE_BRESENHAM:
 	case DRAWING_MODE_LINE_WU:
 		if (current_line == NULL) {
-			current_line = malloc(sizeof(Line));
+			current_line = g_malloc(sizeof(Line));
 			current_line->p1.x = current_line->p2.x = floor(event->x / cell_size);
 			current_line->p1.y = current_line->p2.y = floor(event->y / cell_size);
 		} else {
