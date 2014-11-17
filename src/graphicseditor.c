@@ -4,19 +4,12 @@
 
 #include <gtk/gtk.h>
 
-
-struct _GraphicsEditor
-{
-	GtkApplication parent;
+struct _GraphicsEditorPrivate {
 	GraphicsEditorWindow *window;
+	GSettings *settings;
 };
 
-struct _GraphicsEditorClass
-{
-	GtkApplicationClass parent_class;
-};
-
-G_DEFINE_TYPE(GraphicsEditor, graphicseditor, GTK_TYPE_APPLICATION);
+G_DEFINE_TYPE_WITH_PRIVATE(GraphicsEditor, graphicseditor, GTK_TYPE_APPLICATION);
 
 static void set_drawing_mode_line_dda(GSimpleAction *action, GVariant *parameter, gpointer app);
 static void set_drawing_mode_line_bresenham(GSimpleAction *action, GVariant *parameter, gpointer app);
@@ -32,6 +25,7 @@ static GActionEntry app_tool_entries[] =
 static void
 graphicseditor_init (GraphicsEditor *app)
 {
+	app->priv = graphicseditor_get_instance_private(app);
 }
 
 static void
@@ -43,7 +37,7 @@ graphicseditor_activate (GApplication *app)
 
 	gtk_window_present (GTK_WINDOW (win));
 
-	GRAPHICSEDITOR(app)->window = win;
+	GRAPHICSEDITOR(app)->priv->window = win;
 }
 
 static void
@@ -65,7 +59,7 @@ set_drawing_mode_line_dda(GSimpleAction *action,
 		gpointer app)
 {
 	set_tools_action_enabled(app, FALSE);
-	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->window, DRAWING_MODE_LINE_DDA);
+	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->priv->window, DRAWING_MODE_LINE_DDA);
 	set_tools_action_enabled(app, TRUE);
 
 	drawutils_set_drawing_mode(DRAWING_MODE_LINE_DDA);
@@ -77,7 +71,7 @@ set_drawing_mode_line_bresenham(GSimpleAction *action,
 		gpointer app)
 {
 	set_tools_action_enabled(app, FALSE);
-	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->window, DRAWING_MODE_LINE_BRESENHAM);
+	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->priv->window, DRAWING_MODE_LINE_BRESENHAM);
 	set_tools_action_enabled(app, TRUE);
 
 	drawutils_set_drawing_mode(DRAWING_MODE_LINE_BRESENHAM);
@@ -89,7 +83,7 @@ set_drawing_mode_line_wu(GSimpleAction *action,
 		gpointer app)
 {
 	set_tools_action_enabled(app, FALSE);
-	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->window, DRAWING_MODE_LINE_WU);
+	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->priv->window, DRAWING_MODE_LINE_WU);
 	set_tools_action_enabled(app, TRUE);
 
 	drawutils_set_drawing_mode(DRAWING_MODE_LINE_WU);
@@ -116,8 +110,14 @@ graphicseditor_class_init (GraphicsEditorClass *class)
 GraphicsEditor *
 graphicseditor_new (void)
 {
-	return g_object_new (GRAPHICSEDITOR_TYPE,
-			"application-id", "by.jylilov.grapheditor",
-			"flags", G_APPLICATION_HANDLES_OPEN,
+	GraphicsEditor *app;
+
+	g_set_application_name("Graphics Editor");
+
+	app = g_object_new (GRAPHICSEDITOR_TYPE,
+			"application-id", "by.jylilov.graphicseditor",
 			NULL);
+
+	app->priv->settings = g_settings_new("by.jylilov.graphicseditor");
+	return app;
 }

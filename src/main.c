@@ -5,5 +5,12 @@
 int
 main (int argc, char *argv[])
 {
-	return g_application_run (G_APPLICATION (graphicseditor_new()), argc, argv);
+	GraphicsEditor *app;
+	int status;
+
+	app = graphicseditor_new();
+	status = g_application_run (G_APPLICATION (app), argc, argv);
+	g_object_unref(app);
+
+	return status;
 }

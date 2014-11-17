@@ -1,4 +1,14 @@
 <schemalist>
-	<schema id="by.jylilov.graphicseditor" path="/by/jylilov/graphicseditor/">
-	</schema>
+  <schema path="/by/jylilov/graphicseditor/" id="by.jylilov.graphicseditor">
+    <key name="drawing-mode" type="s">
+      <default>"none"</default>
+	<choices>
+		<choice value='none'/>
+		<choice value='dda-line'/>
+		<choice value='bresenham-line'/>
+		<choice value='wu-line'/>
+		<choice value='hyperbole'/>
+      </choices>
+    </key>
+  </schema>
 </schemalist>
