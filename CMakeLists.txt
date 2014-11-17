@@ -23,7 +23,6 @@ add_gresource(${CMAKE_CURRENT_SOURCE_DIR}/ui graphicseditor.gresource.xml
         
 include(GSettings)
 add_gschema(${CMAKE_CURRENT_SOURCE_DIR}/schemas ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-set(ENV{GSETTINGS_SCHEMA_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 	
 file(GLOB_RECURSE SOURCES "src/*.c")
 file(GLOB_RECURSE HEADERS "src/*.h")
