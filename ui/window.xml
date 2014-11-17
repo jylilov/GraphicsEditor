@@ -43,12 +43,8 @@
 		<ui>
 			<menubar name="menu_bar">
 				<menu action="FileMenu" name="FileMenu">
-						<menuitem action="New" name="New"/>
-						<separator/>
-						<menuitem action="Quit" name="Quit"/>
 				</menu>
 				<menu action="HelpMenu" name="HelpMenu">
-						<menuitem action="About" name="About"/>
 				</menu>
 			</menubar>
 			<toolbar name="toolbar">
