@@ -1,11 +1,7 @@
-# Used for GResource.
+# Used for GSettings.
 #
-# resource_dir: Directory where the .gresource.xml is located.
-# resource_file: Filename of the .gresource.xml file (just the
-# filename, not the complete path).
-# output_dir: Directory where the C output file is written.
-# output_file: This variable will be set with the complete path of the
-# output C file.
+# schemas_dir: Directory where the *.gschema.xml are located.
+# output_dir: Directory where the compiled file is written.
 
 function(add_gschema schemas_dir output_dir)
 
@@ -15,10 +11,7 @@ if (NOT GLIB_COMPILE_SCHEMAS)
 message(FATAL "Could not find glib-compile-schemas")
 endif()
 
-# Get the output file path
-set(output_compile_file "${output_dir}/gschemas.compiled")
-
-# Command to compile the resources
+# Command to compile the schemas
 execute_process(COMMAND ${GLIB_COMPILE_SCHEMAS} --targetdir=${output_dir} ${schemas_dir})
 
 endfunction()
