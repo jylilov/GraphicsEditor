@@ -120,7 +120,7 @@ graphicseditor_about(GSimpleAction *action, GVariant *parameter, gpointer user_d
 
 	gtk_show_about_dialog (GTK_WINDOW (app->priv->window),
 			"program-name", "Graphics Editor",
-			"website", "https://github.com/jylilov/GraphicsEditor.git",
+			"website", "https://github.com/jylilov/GraphicsEditor",
 			"website-label", "Project on GitHub",
 			"comments", comments,
 			"authors", authors,
