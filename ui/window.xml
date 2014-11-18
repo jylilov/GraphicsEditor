@@ -1,115 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <interface>
-	<object class="GtkUIManager" id="ui_manager">
-		<child>
-			<object class="GtkActionGroup" id="action_group">
-				<child>
-					<object class="GtkAction" id="FileMenu">
-						<property name="name">FileMenu</property>
-						<property name="label">File</property>
-					</object>
-				</child>
-				<child>
-					<object class="GtkAction" id="New">
-						<property name="name">New</property>
-						<property name="label">New</property>
-						<property name="stock_id">gtk-new</property>
-					</object>
-				</child>
-				<child>
-					<object class="GtkAction" id="Quit">
-						<property name="name">Quit</property>
-						<property name="label">Quit</property>
-						<property name="stock_id">gtk-quit</property>
-					</object>
-				</child>
-				<child>
-					<object class="GtkAction" id="HelpMenu">
-						<property name="name">HelpMenu</property>
-						<property name="label">Help</property>
-					</object>
-				</child>
-				<child>
-					<object class="GtkAction" id="About">
-						<property name="name">About</property>
-						<property name="label">About</property>
-						<property name="stock_id">gtk-about</property>
-					</object>
-					<accelerator key="F7"/>
-				</child>
-			</object>
-		</child>
-		<ui>
-			<menubar name="menu_bar">
-				<menu action="FileMenu" name="FileMenu">
-				</menu>
-				<menu action="HelpMenu" name="HelpMenu">
-				</menu>
-			</menubar>
-			<toolbar name="toolbar">
-				<toolitem action="New" name="New"/>
-				<separator/>
-				<toolitem action="Quit" name="Quit"/>
-			</toolbar>
-		</ui>
-	</object>
 	<template class="GraphicsEditorWindow" parent="GtkApplicationWindow">
-		<property name="title">Graph Editor</property>
+		<property name="title">Graphics Editor</property>
 		<property name="default-width">800</property>
 		<property name="default-height">600</property>
 		<child>
 			<object class="GtkVBox" id="main_vbox">
 				<property name="visible">true</property>
 				<child>
-					<object class="GtkMenuBar" id="menu_bar" constructor="ui_manager">
-						<property name="visible">true</property>
-					</object>
-					<packing>
-						<property name="expand">false</property>
-					</packing>
-				</child>
-				<child>
-					<object class="GtkToolbar" id="toolbar" constructor="ui_manager">
-						<property name="visible">true</property>
-					</object>
-					<packing>
-						<property name="expand">false</property>
-					</packing>
-				</child>
-				<child>
 					<object class="GtkPaned" id="paned">
 						<property name="visible">true</property>
 						<child>
 							<object class="GtkToolPalette" id="tool_palette">
-								<property name="visible">true</property>
-								<child>
-									<object class="GtkToolItemGroup" id="sample_tool_group">
-										<property name="label">Lines</property>
-										<property name="visible">true</property>
-										<child>
-											<object class="GtkToggleToolButton" id="tool_button_line_dda">
-												<property name="action-name">app.drawing-mode.line-dda</property>
-												<property name="label">DDA-line algorithm</property>
-												<property name="visible">true</property>
-											</object>
-										</child>
-										<child>
-											<object class="GtkToggleToolButton" id="tool_button_line_bresenham">
-												<property name="action-name">app.drawing-mode.line-bresenham</property>
-												<property name="label">Bresenham's line algorithm</property>
-												<property name="visible">true</property>
-											</object>
-										</child>
-										<child>
-											<object class="GtkToggleToolButton" id="tool_button_line_wu">
-												<property name="action-name">app.drawing-mode.line-wu</property>
-												<property name="label">Xiaolin Wu's line algorithm</property>
-												<property name="visible">true</property>
-											</object>
-										</child>
-									</object>
-								</child>
 							</object>
 						</child>
 						<child>

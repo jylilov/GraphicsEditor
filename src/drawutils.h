@@ -5,11 +5,6 @@
 
 #include <gtk/gtk.h>
 
-#define DRAWING_MODE_NONE 0
-#define DRAWING_MODE_LINE_DDA 1
-#define DRAWING_MODE_LINE_BRESENHAM 2
-#define DRAWING_MODE_LINE_WU 3
-
 gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data);
 gboolean configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, gpointer data);
 gboolean button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data);

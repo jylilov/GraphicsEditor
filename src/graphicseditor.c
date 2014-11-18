@@ -2,8 +2,6 @@
 #include "graphicseditorwin.h"
 #include "drawutils.h"
 
-#include <gtk/gtk.h>
-
 struct _GraphicsEditorPrivate {
 	GraphicsEditorWindow *window;
 
@@ -23,17 +21,6 @@ static void graphicseditor_changed_drawing_mode(GSettings *setting, GVariant *pa
 static void graphicseditor_change_drawing_mode(GSimpleAction *action, GVariant *parameter, gpointer user_data);
 
 G_DEFINE_TYPE_WITH_PRIVATE(GraphicsEditor, graphicseditor, GTK_TYPE_APPLICATION);
-
-static void set_drawing_mode_line_dda(GSimpleAction *action, GVariant *parameter, gpointer app);
-static void set_drawing_mode_line_bresenham(GSimpleAction *action, GVariant *parameter, gpointer app);
-static void set_drawing_mode_line_wu(GSimpleAction *action, GVariant *parameter, gpointer app);
-
-static GActionEntry app_tool_entries[] =
-{
-		{ "drawing-mode.line-dda", set_drawing_mode_line_dda },
-		{ "drawing-mode.line-bresenham", set_drawing_mode_line_bresenham },
-		{ "drawing-mode.line-wu", set_drawing_mode_line_wu }
-};
 
 static void
 graphicseditor_init (GraphicsEditor *app)
@@ -63,6 +50,12 @@ graphicseditor_activate (GApplication *app)
 
 	priv->window = graphicseditor_window_new (GRAPHICSEDITOR (app));
 	gtk_window_present (GTK_WINDOW (priv->window));
+
+	g_settings_bind(priv->settings,
+			"drawing-mode",
+			priv->window,
+			"drawing-mode",
+			G_SETTINGS_BIND_SET | G_SETTINGS_BIND_GET);
 }
 
 static void
@@ -73,10 +66,6 @@ graphicseditor_startup (GApplication *app)
 	graphicseditor_set_accelerator(GRAPHICSEDITOR(app));
 	graphicseditor_set_actions(GRAPHICSEDITOR(app));
 	graphicseditor_set_app_menu(GRAPHICSEDITOR(app));
-
-	g_object_set (gtk_settings_get_default (),
-			"gtk-application-prefer-dark-theme", TRUE,
-			NULL);
 }
 
 static void
@@ -97,7 +86,7 @@ graphicseditor_quit(GSimpleAction *action, GVariant *parameter, gpointer user_da
 {
 	GApplication *app;
 
-	g_return_if_fail(IS_GRAPHICSEDITOR(user_data));
+	g_return_if_fail(GRAPHICSEDITOR_IS_INSTANCE(user_data));
 	app = G_APPLICATION (user_data);
 
 	g_application_quit (app);
@@ -108,7 +97,7 @@ graphicseditor_about(GSimpleAction *action, GVariant *parameter, gpointer user_d
 {
 	GraphicsEditor *app;
 
-	g_return_if_fail(IS_GRAPHICSEDITOR(user_data));
+	g_return_if_fail(GRAPHICSEDITOR_IS_INSTANCE(user_data));
 	app = GRAPHICSEDITOR(user_data);
 
 	const gchar *comments = "This program is simple graphics editor.";
@@ -193,9 +182,6 @@ graphicseditor_set_actions(GraphicsEditor *app)
 
 	g_action_map_add_action(G_ACTION_MAP(app), G_ACTION(app->priv->drawing_mode));
 
-	g_action_map_add_action_entries(G_ACTION_MAP(app),
-				app_tool_entries, G_N_ELEMENTS(app_tool_entries), app);
-
 }
 
 static void
@@ -210,8 +196,8 @@ graphicseditor_set_app_menu(GraphicsEditor *app)
 	submenu = g_menu_new();
 
 	section = g_menu_new();
-	g_menu_append(section, "New", NULL);
-	g_menu_append(section, "Close", NULL);
+	g_menu_append(section, "New", "app.new");
+	g_menu_append(section, "Close", "app.close");
 	g_menu_append_section(submenu, NULL, G_MENU_MODEL(section));
 	g_object_unref(section);
 
@@ -263,7 +249,7 @@ graphicseditor_changed_drawing_mode(GSettings *setting, GVariant *parameter, gpo
 {
 	GraphicsEditorPrivate *priv;
 
-	g_return_if_fail(IS_GRAPHICSEDITOR(user_data));
+	g_return_if_fail(GRAPHICSEDITOR_IS_INSTANCE(user_data));
 	priv = GRAPHICSEDITOR(user_data)->priv;
 
 	g_simple_action_set_state(priv->drawing_mode,
@@ -275,59 +261,10 @@ graphicseditor_change_drawing_mode(GSimpleAction *action, GVariant *parameter, g
 {
 	GraphicsEditorPrivate *priv;
 
-	g_return_if_fail(IS_GRAPHICSEDITOR(user_data));
+	g_return_if_fail(GRAPHICSEDITOR_IS_INSTANCE(user_data));
 	priv = GRAPHICSEDITOR(user_data)->priv;
 
 	g_settings_set_value(priv->settings, "drawing-mode", parameter);
-}
-
-static void
-set_tools_action_enabled(GraphicsEditor *ge, gboolean enabled) {
-	if (enabled == FALSE) {
-		gint i;
-		for (i = 0; i < G_N_ELEMENTS(app_tool_entries); ++i) {
-			g_action_map_remove_action(G_ACTION_MAP(ge), app_tool_entries[i].name);
-		}
-	} else {
-		g_action_map_add_action_entries(G_ACTION_MAP(ge),
-					app_tool_entries, G_N_ELEMENTS(app_tool_entries), ge);
-	}
-}
-
-static void
-set_drawing_mode_line_dda(GSimpleAction *action,
-		GVariant *parameter,
-		gpointer app)
-{
-	set_tools_action_enabled(app, FALSE);
-	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->priv->window, DRAWING_MODE_LINE_DDA);
-	set_tools_action_enabled(app, TRUE);
-
-	drawutils_set_drawing_mode(DRAWING_MODE_LINE_DDA);
-}
-
-static void
-set_drawing_mode_line_bresenham(GSimpleAction *action,
-		GVariant *parameter,
-		gpointer app)
-{
-	set_tools_action_enabled(app, FALSE);
-	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->priv->window, DRAWING_MODE_LINE_BRESENHAM);
-	set_tools_action_enabled(app, TRUE);
-
-	drawutils_set_drawing_mode(DRAWING_MODE_LINE_BRESENHAM);
-}
-
-static void
-set_drawing_mode_line_wu(GSimpleAction *action,
-		GVariant *parameter,
-		gpointer app)
-{
-	set_tools_action_enabled(app, FALSE);
-	graphicseditor_window_set_drawing_mode(GRAPHICSEDITOR(app)->priv->window, DRAWING_MODE_LINE_WU);
-	set_tools_action_enabled(app, TRUE);
-
-	drawutils_set_drawing_mode(DRAWING_MODE_LINE_WU);
 }
 
 GraphicsEditor *

@@ -1,4 +1,5 @@
 #include "drawutils.h"
+#include "graphicseditor_utils.h"
 
 #include <math.h>
 
@@ -17,7 +18,7 @@ static gint height;
 static gint width;
 static gint cell_size = 1;
 
-static gint drawing_mode = 0;
+static GraphicsEditorDrawingModeType drawing_mode;
 
 static GSList *dda_lines;
 static GSList *bresenham_lines;
@@ -228,13 +229,13 @@ gboolean draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 
 	if (current_line != NULL) {
 		switch(drawing_mode) {
-		case DRAWING_MODE_LINE_DDA:
+		case GRAPHICSEDITOR_DRAWING_MODE_DDA_LINE:
 			draw_line1(cr, current_line->p1.x, current_line->p1.y, current_line->p2.x, current_line->p2.y);
 			break;
-		case DRAWING_MODE_LINE_BRESENHAM:
+		case GRAPHICSEDITOR_DRAWING_MODE_BRESENHAM_LINE:
 			draw_line2(cr, current_line->p1.x, current_line->p1.y, current_line->p2.x, current_line->p2.y);
 			break;
-		case DRAWING_MODE_LINE_WU:
+		case GRAPHICSEDITOR_DRAWING_MODE_WU_LINE:
 			draw_line3(cr, current_line->p1.x, current_line->p1.y, current_line->p2.x, current_line->p2.y);
 			break;
 		}
@@ -261,13 +262,13 @@ static void clear_current_line(void)
 
 static void add_line(Line *line) {
 	switch (drawing_mode) {
-	case DRAWING_MODE_LINE_DDA:
+	case GRAPHICSEDITOR_DRAWING_MODE_DDA_LINE:
 		dda_lines = g_slist_append(dda_lines, line);
 		break;
-	case DRAWING_MODE_LINE_BRESENHAM:
+	case GRAPHICSEDITOR_DRAWING_MODE_BRESENHAM_LINE:
 		bresenham_lines = g_slist_append(bresenham_lines, line);
 		break;
-	case DRAWING_MODE_LINE_WU:
+	case GRAPHICSEDITOR_DRAWING_MODE_WU_LINE:
 		wu_lines = g_slist_append(wu_lines, line);
 		break;
 	}
@@ -276,9 +277,9 @@ static void add_line(Line *line) {
 gboolean button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data)
 {
 	switch (drawing_mode) {
-	case DRAWING_MODE_LINE_DDA:
-	case DRAWING_MODE_LINE_BRESENHAM:
-	case DRAWING_MODE_LINE_WU:
+	case GRAPHICSEDITOR_DRAWING_MODE_DDA_LINE:
+	case GRAPHICSEDITOR_DRAWING_MODE_BRESENHAM_LINE:
+	case GRAPHICSEDITOR_DRAWING_MODE_WU_LINE:
 		if (current_line == NULL) {
 			current_line = g_malloc(sizeof(Line));
 			current_line->p1.x = current_line->p2.x = floor(event->x / cell_size);
@@ -289,7 +290,7 @@ gboolean button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, 
 			gtk_widget_queue_draw(widget);
 		}
 		break;
-	case DRAWING_MODE_NONE:
+	case GRAPHICSEDITOR_DRAWING_MODE_NONE:
 		clear_current_line();
 		break;
 	}
