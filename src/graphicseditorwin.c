@@ -2,12 +2,12 @@
 #include "graphicseditor_enum_types.h"
 #include "graphicseditor_utils.h"
 #include "drawingpane.h"
-#include "drawutils.h"
 
 struct _GraphicsEditorWindowPrivate
 {
 	DrawingPane *drawing_area;
 	GtkToolPalette *tool_palette;
+	GtkFrame *working_area;
 	GraphicsEditorDrawingModeType drawing_mode;
 };
 
@@ -20,6 +20,7 @@ static void graphicseditor_window_constructed(GObject *object);
 static void graphicseditor_window_finalize(GObject *object);
 static void graphicseditor_window_set_property (GObject *object, guint property_id, const GValue *value, GParamSpec *pspec);
 static void graphicseditor_window_get_property (GObject *object, guint property_id, GValue *value, GParamSpec *pspec);
+static void graphicseditor_window_set_toolpalette(GraphicsEditorWindow *win);
 
 G_DEFINE_TYPE_WITH_PRIVATE(GraphicsEditorWindow, graphicseditor_window, GTK_TYPE_APPLICATION_WINDOW);
 
@@ -55,7 +56,7 @@ graphicseditor_window_class_init (GraphicsEditorWindowClass *class)
 
 	gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class), "/by/jylilov/graphicseditor/window.xml");
 	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), GraphicsEditorWindow, tool_palette);
-	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), GraphicsEditorWindow, drawing_area);
+	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), GraphicsEditorWindow, working_area);
 }
 
 static void
@@ -76,6 +77,7 @@ graphicseditor_window_set_property (GObject *object, guint property_id, const GV
 		break;
 	}
 }
+
 static void
 graphicseditor_window_get_property (GObject *object, guint property_id, GValue *value, GParamSpec *pspec)
 {
@@ -95,17 +97,11 @@ graphicseditor_window_get_property (GObject *object, guint property_id, GValue *
 }
 
 static void
-graphicseditor_window_constructed(GObject *object)
+graphicseditor_window_set_toolpalette(GraphicsEditorWindow *win)
 {
-	GraphicsEditorWindowPrivate *priv;
 	GtkToolItemGroup *group;
 	GtkToolItem *item;
 	gint i;
-
-	if (G_OBJECT_CLASS (graphicseditor_window_parent_class)->constructed != NULL)
-		G_OBJECT_CLASS (graphicseditor_window_parent_class)->constructed (object);
-
-	priv = GRAPHICSEDITOR_WINDOW(object)->priv;
 
 	group = GTK_TOOL_ITEM_GROUP(gtk_tool_item_group_new("Lines"));
 	i = 0;
@@ -125,7 +121,7 @@ graphicseditor_window_constructed(GObject *object)
 	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::wu-line");
 	gtk_tool_item_group_insert(group, item, i++);
 
-	gtk_container_add(GTK_CONTAINER(priv->tool_palette), GTK_WIDGET(group));
+	gtk_container_add(GTK_CONTAINER(win->priv->tool_palette), GTK_WIDGET(group));
 
 	group = GTK_TOOL_ITEM_GROUP(gtk_tool_item_group_new("Lines of the 2nd order"));
 	i = 0;
@@ -135,9 +131,28 @@ graphicseditor_window_constructed(GObject *object)
 	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::hyperbole");
 	gtk_tool_item_group_insert(group, item, i++);
 
-	gtk_container_add(GTK_CONTAINER(priv->tool_palette), GTK_WIDGET(group));
+	gtk_container_add(GTK_CONTAINER(win->priv->tool_palette), GTK_WIDGET(group));
 
-	gtk_widget_show_all(GTK_WIDGET(priv->tool_palette));
+	gtk_widget_show_all(GTK_WIDGET(win->priv->tool_palette));
+}
+
+static void
+graphicseditor_window_constructed(GObject *object)
+{
+	GraphicsEditorWindowPrivate *priv;
+
+	if (G_OBJECT_CLASS (graphicseditor_window_parent_class)->constructed != NULL)
+		G_OBJECT_CLASS (graphicseditor_window_parent_class)->constructed (object);
+
+	priv = GRAPHICSEDITOR_WINDOW(object)->priv;
+
+	graphicseditor_window_set_toolpalette(GRAPHICSEDITOR_WINDOW(object));
+
+	// TODO many drawing panes
+	priv->drawing_area = drawing_pane_new();
+	gtk_container_add(GTK_CONTAINER(priv->working_area), GTK_WIDGET(priv->drawing_area));
+
+	gtk_widget_show_all(GTK_WIDGET(priv->drawing_area));
 }
 
 static void

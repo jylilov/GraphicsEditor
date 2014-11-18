@@ -106,7 +106,7 @@ drawing_pane_init (DrawingPane *pane)
 
 	priv = drawing_pane_get_instance_private(pane);
 
-	drawutils_init(priv->drawing_area, 1024, 768);
+	drawutils_init(priv->drawing_area, 400, 300);
 
 	gtk_widget_set_valign(GTK_WIDGET(priv->drawing_area), GTK_ALIGN_CENTER);
 	gtk_widget_set_halign(GTK_WIDGET(priv->drawing_area), GTK_ALIGN_CENTER);
