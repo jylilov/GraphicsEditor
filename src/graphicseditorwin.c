@@ -1,11 +1,8 @@
 #include "graphicseditorwin.h"
-#include "graphicseditor.h"
 #include "graphicseditor_enum_types.h"
 #include "graphicseditor_utils.h"
 #include "drawingpane.h"
 #include "drawutils.h"
-
-#include <gtk/gtk.h>
 
 struct _GraphicsEditorWindowPrivate
 {
@@ -16,8 +13,7 @@ struct _GraphicsEditorWindowPrivate
 
 enum
 {
-  PROP_0,
-  PROP_DRAWING_MODE
+  PROP_DRAWING_MODE = 1
 };
 
 static void graphicseditor_window_constructed(GObject *object);
