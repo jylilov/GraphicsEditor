@@ -70,7 +70,6 @@ graphicseditor_window_set_property (GObject *object, guint property_id, const GV
 	switch (property_id) {
 	case PROP_DRAWING_MODE:
 		priv->drawing_mode = g_value_get_enum(value);
-		drawutils_set_drawing_mode(priv->drawing_mode);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -139,17 +138,19 @@ graphicseditor_window_set_toolpalette(GraphicsEditorWindow *win)
 static void
 graphicseditor_window_constructed(GObject *object)
 {
+	GraphicsEditorWindow *win;
 	GraphicsEditorWindowPrivate *priv;
 
 	if (G_OBJECT_CLASS (graphicseditor_window_parent_class)->constructed != NULL)
 		G_OBJECT_CLASS (graphicseditor_window_parent_class)->constructed (object);
 
-	priv = GRAPHICSEDITOR_WINDOW(object)->priv;
+	win = GRAPHICSEDITOR_WINDOW(object);
+	priv = win->priv;
 
 	graphicseditor_window_set_toolpalette(GRAPHICSEDITOR_WINDOW(object));
 
 	// TODO many drawing panes
-	priv->drawing_area = drawing_pane_new();
+	priv->drawing_area = drawing_pane_new(win);
 	gtk_container_add(GTK_CONTAINER(priv->working_area), GTK_WIDGET(priv->drawing_area));
 
 	gtk_widget_show_all(GTK_WIDGET(priv->drawing_area));

@@ -1,6 +1,7 @@
 #include "graphicseditor.h"
+
+#include "drawingpane_utils.h"
 #include "graphicseditorwin.h"
-#include "drawutils.h"
 
 struct _GraphicsEditorPrivate {
 	GraphicsEditorWindow *window;
