@@ -14,6 +14,7 @@ struct _DrawingPanePrivate
 	GList *figure_list;
 	GList *editing_line;
 
+	cairo_surface_t *surface;
 	GtkDrawingArea *drawing_area;
 	GtkScrolledWindow *scrolled_window;
 };
@@ -34,6 +35,8 @@ static GraphicsEditorDrawingModeType get_drawing_mode(DrawingPane *pane);
 static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static void move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x2, gint y2);
 static void draw_net(cairo_t* cr, DrawingPane *pane);
+static void refresh_surface(DrawingPane *pane);
+static void init_surface(DrawingPane *pane);
 
 G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN);
 
@@ -205,6 +208,8 @@ drawing_pane_finalize(GObject *obj)
 {
 	DrawingPanePrivate *priv;
 
+	//TODO
+
 	if (G_OBJECT_CLASS (drawing_pane_parent_class)->finalize != NULL)
 		G_OBJECT_CLASS (drawing_pane_parent_class)->finalize (obj);
 }
@@ -232,8 +237,8 @@ draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane)
 {
 	cairo_set_source_rgba(cr, 0, 0, 0, pixel->alpha);
 	cairo_rectangle(cr,
-			pixel->x * pane->priv->cell_size, pixel->y * pane->priv->cell_size,
-			pane->priv->cell_size, pane->priv->cell_size);
+			pixel->x, pixel->y,
+			1, 1);
 	cairo_fill(cr);
 }
 
@@ -255,6 +260,42 @@ get_drawing_mode(DrawingPane *pane) {
 	return answer;
 }
 
+static void
+init_surface(DrawingPane *pane) {
+	if (pane->priv->surface == NULL) {
+		pane->priv->surface = gdk_window_create_similar_surface (
+				gtk_widget_get_window (GTK_WIDGET(pane->priv->drawing_area)),
+				CAIRO_CONTENT_COLOR,
+				pane->priv->width,
+				pane->priv->height);
+		refresh_surface(pane);
+	}
+}
+
+static void
+refresh_surface(DrawingPane *pane) {
+	DrawingPanePrivate *priv;
+	cairo_t *cr;
+	GList *figure, *figure_list;
+
+	priv = DRAWING_PANE(pane)->priv;
+
+	cr = cairo_create (priv->surface);
+
+	cairo_set_source_rgb (cr, 1, 1, 1);
+	cairo_paint (cr);
+
+	figure_list = priv->figure_list;
+
+	while (figure_list != NULL) {
+		figure = figure_list->data;
+		draw_figure(cr, figure, pane);
+		figure_list = g_list_next(figure_list);
+	}
+
+	cairo_destroy (cr);
+}
+
 gboolean
 drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 {
@@ -263,23 +304,20 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 
 	priv = DRAWING_PANE(data)->priv;
 
-	cairo_set_source_rgb(cr, 1, 1, 1);
-	cairo_rectangle(cr, 0, 0, priv->width * priv->cell_size, priv->height * priv->cell_size);
-	cairo_fill(cr);
+	cairo_scale(cr, priv->cell_size, priv->cell_size);
 
-	figure_list = priv->figure_list;
-	while (figure_list != NULL) {
-		figure = figure_list->data;
-		draw_figure(cr, figure, DRAWING_PANE(data));
-		figure_list = g_list_next(figure_list);
-	}
+	cairo_set_source_surface (cr, priv->surface, 0, 0);
+	cairo_paint (cr);
 
 	if (priv->editing_line != NULL) {
 		draw_figure(cr, priv->editing_line, DRAWING_PANE(data));
 	}
 
+	cairo_scale(cr, 1.0 / priv->cell_size, 1.0 / priv->cell_size);
+
 	draw_net(cr, DRAWING_PANE(data));
-	return FALSE;
+
+	return TRUE;
 }
 
 gboolean
@@ -289,14 +327,13 @@ drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *even
 
 	priv = DRAWING_PANE(data)->priv;
 
-	gint drawing_area_width, drawing_area_height;
-	gtk_widget_get_size_request(GTK_WIDGET(priv->drawing_area), &drawing_area_width, &drawing_area_height);
+	priv->cell_size = gtk_widget_get_allocated_width(GTK_WIDGET(priv->drawing_area)) / priv->width;
 
-	priv->cell_size = drawing_area_width / priv->width;
+	init_surface(DRAWING_PANE(data));
 
 	gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
 
-	return FALSE;
+	return TRUE;
 }
 
 gboolean
@@ -323,6 +360,8 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
 
 				priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
 				priv->editing_line = NULL;
+
+				refresh_surface(DRAWING_PANE(data));
 			}
 			break;
 		case 3:
@@ -388,6 +427,8 @@ move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x
 	*figure = get_line_figure(drawing_mode, x1, y1, x2, y2);
 }
 
+
+//TODO Optimization
 static void draw_net(cairo_t* cr, DrawingPane *pane) {
 	gint cell_size = pane->priv->cell_size;
 	gint height = pane->priv->height;
