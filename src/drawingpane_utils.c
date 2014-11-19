@@ -1,10 +1,13 @@
 #include "drawingpane_utils.h"
 #include <math.h>
 
+#define SQR(A) (A) * (A)
+
 static gint sign(gdouble x);
 static void swap(gint *a, gint *b);
 static void add_pixel(GList **figure, gint x, gint y);
 static void add_pixel_with_alpha(GList **figure, gint x, gint y, gdouble alpha);
+static gboolean add_pixel_in_zone(GList **figure, gint x, gint y, gint x0, gint y0, gint width, gint height);
 
 static
 gint sign(gdouble x) {
@@ -140,7 +143,7 @@ get_wu_line_figure(gint x1, gint y1, gint x2, gint y2) {
 	dx = x2 - x1;
 	dy = y2 - y1;
 
-	if (dx == 0 || dy == 0) {
+	if (dx == 0 || dy == 0 || abs(dx) == abs(dy)) {
 		return get_bresenham_line_figure(x1, y1, x2, y2);
 	}
 
@@ -201,4 +204,55 @@ get_wu_line_figure(gint x1, gint y1, gint x2, gint y2) {
 	}
 
 	return figure;
+}
+
+static gboolean
+add_pixel_in_zone(GList **figure, gint x, gint y, gint x0, gint y0, gint width, gint height) {
+	if (x >= x0 && x <= x0 + width &&
+			y >= y0 && y <= y0 + height) {
+		add_pixel(figure, x, y);
+		return TRUE;
+	} else {
+		return FALSE;
+	}
+}
+
+GList *get_hyperbole_figure(gint a, gint b, gint x0, gint y0, gint width, gint height)
+{
+	GList *list;
+	gint x, y;
+	gint e1, e2, e3;
+	gboolean in_zone;
+
+	list = NULL;
+
+	x = a;
+	y = 0;
+
+	add_pixel_in_zone(&list, x, y, x0, y0, width, height);
+	add_pixel_in_zone(&list, -x, y, x0, y0, width, height);
+
+	while (TRUE) {
+		e1 = abs(SQR(x + 1) * SQR(b) - SQR(y + 1) * SQR(a) - SQR(a) * SQR(b));
+		e2 = abs(SQR(x + 1) * SQR(b) - SQR(y) * SQR(a) - SQR(a) * SQR(b));
+		e3 = abs(SQR(x) * SQR(b) - SQR(y + 1) * SQR(a) - SQR(a) * SQR(b));
+
+		if (e1 < e2 && e1 < e3) {
+			++x;
+			++y;
+		} else if (e2 < e3) {
+			++x;
+		} else {
+			++y;
+		}
+
+		in_zone = FALSE;
+		in_zone |= add_pixel_in_zone(&list, x, y, x0, y0, width, height);
+		in_zone |= add_pixel_in_zone(&list, x, -y, x0, y0, width, height);
+		in_zone |= add_pixel_in_zone(&list, -x, y, x0, y0, width, height);
+		in_zone |= add_pixel_in_zone(&list, -x, -y, x0, y0, width, height);
+		if (!in_zone) break;
+	}
+
+	return list;
 }

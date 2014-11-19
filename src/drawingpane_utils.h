@@ -15,6 +15,7 @@ struct _Pixel {
 GList *get_dda_line_figure(gint x1, gint y1, gint x2, gint y2);
 GList *get_bresenham_line_figure(gint x1, gint y1, gint x2, gint y2);
 GList *get_wu_line_figure(gint x1, gint y1, gint x2, gint y2);
+GList *get_hyperbole_figure(gint a, gint b, gint x0, gint y0, gint width, gint height);
 
 G_END_DECLS
 

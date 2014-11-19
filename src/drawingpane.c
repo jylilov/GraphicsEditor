@@ -32,11 +32,14 @@ static void draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane);
 static void draw_figure(cairo_t *cr, GList *figure, DrawingPane *pane);
 static void clear_figure(GList **figure);
 static GraphicsEditorDrawingModeType get_drawing_mode(DrawingPane *pane);
+static gboolean is_line_drawing_mode(GraphicsEditorDrawingModeType mode);
 static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static void move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x2, gint y2);
 static void draw_net(cairo_t* cr, DrawingPane *pane);
 static void refresh_surface(DrawingPane *pane);
 static void init_surface(DrawingPane *pane);
+static GList *get_hyperbole(DrawingPane *pane);
+static void translate(DrawingPane *pane, gint *x, gint *y);
 
 G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN);
 
@@ -237,6 +240,7 @@ draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane)
 {
 	cairo_set_source_rgba(cr, 0, 0, 0, pixel->alpha);
 	cairo_rectangle(cr,
+			//pixel->x + pane->priv->width / 2, pixel->y + pane->priv->height / 2,
 			pixel->x, pixel->y,
 			1, 1);
 	cairo_fill(cr);
@@ -258,6 +262,13 @@ get_drawing_mode(DrawingPane *pane) {
 	GraphicsEditorDrawingModeType answer;
 	g_object_get(G_OBJECT(pane->priv->window), "drawing-mode", &answer, NULL);
 	return answer;
+}
+
+static gboolean
+is_line_drawing_mode(GraphicsEditorDrawingModeType mode) {
+	return (mode == GRAPHICSEDITOR_DRAWING_MODE_DDA_LINE ||
+			mode == GRAPHICSEDITOR_DRAWING_MODE_BRESENHAM_LINE ||
+			mode == GRAPHICSEDITOR_DRAWING_MODE_WU_LINE);
 }
 
 static void
@@ -347,21 +358,30 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
 	switch (event->button) {
 		case 1:
 			drawing_mode = get_drawing_mode(DRAWING_PANE(data));
-			x = floor(event->x / priv->cell_size);
-			y = floor(event->y / priv->cell_size);
-			if (priv->editing_line == NULL) {
-				priv->editing_line = get_line_figure(drawing_mode, x, y, x, y);
-			} else {
-				move_line_end(drawing_mode, &priv->editing_line, x, y);
-
+			if (is_line_drawing_mode(drawing_mode)) {
+				x = floor(event->x / priv->cell_size);
+				y = floor(event->y / priv->cell_size);
+				translate(DRAWING_PANE(data), &x, &y);
 				if (priv->editing_line == NULL) {
-					g_error("Editing line not NULL when drawing mode not line");
+					priv->editing_line = get_line_figure(drawing_mode, x, y, x, y);
+				} else {
+					move_line_end(drawing_mode, &priv->editing_line, x, y);
+
+					if (priv->editing_line == NULL) {
+						g_error("Editing line not NULL when drawing mode not line");
+					}
+
+					priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
+					priv->editing_line = NULL;
+
+					refresh_surface(DRAWING_PANE(data));
 				}
-
-				priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
-				priv->editing_line = NULL;
-
-				refresh_surface(DRAWING_PANE(data));
+			} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE){
+				GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
+				if (hyperbole) {
+					priv->figure_list = g_list_append(priv->figure_list, hyperbole);
+					refresh_surface(DRAWING_PANE(data));
+				}
 			}
 			break;
 		case 3:
@@ -469,6 +489,8 @@ drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *ev
 
 		drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
+		translate(DRAWING_PANE(data), &x2, &y2);
+
 		move_line_end(drawing_mode, &priv->editing_line, x2, y2);
 
 		if (priv->editing_line == NULL) {
@@ -478,4 +500,67 @@ drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *ev
 		gtk_widget_queue_draw(widget);
 	}
 	return FALSE;
+}
+
+static GList *
+get_hyperbole(DrawingPane *pane)
+{
+	GList *figure;
+	GtkWidget *dialog;
+	GtkWidget *grid;
+	GtkWidget *content_area;
+	GtkWidget *spin_button_a;
+	GtkWidget *spin_button_b;
+	GtkWidget *label_a;
+	GtkWidget *label_b;
+	gint a;
+	gint b;
+
+	figure = NULL;
+
+	dialog = gtk_dialog_new_with_buttons("Add hyperbole",
+			GTK_WINDOW(pane->priv->window),
+			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			"OK", GTK_RESPONSE_OK,
+			"Cancel", GTK_RESPONSE_CANCEL,
+			NULL);
+
+	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+
+	content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+	grid = gtk_grid_new();
+
+	label_a = gtk_label_new("Hyperbole parameter \"a\" :");
+	label_b = gtk_label_new("Hyperbole parameter \"b\" :");
+	spin_button_a = gtk_spin_button_new_with_range(1, 10000, 100);
+	spin_button_b = gtk_spin_button_new_with_range(1, 10000, 100);
+
+	gtk_grid_attach(GTK_GRID(grid), label_a, 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(grid), spin_button_a, 1, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(grid), label_b, 0, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(grid), spin_button_b, 1, 1, 1, 1);
+
+	gtk_container_add(GTK_CONTAINER(content_area), grid);
+	gtk_widget_show_all(GTK_WIDGET(grid));
+
+	gint result = gtk_dialog_run(GTK_DIALOG(dialog));
+	a = round(gtk_spin_button_get_value(GTK_SPIN_BUTTON(spin_button_a)));
+	b = round(gtk_spin_button_get_value(GTK_SPIN_BUTTON(spin_button_b)));
+	gtk_widget_destroy(dialog);
+
+	if (result == GTK_RESPONSE_OK) {
+		figure = get_hyperbole_figure(a, b,
+				0, 0,
+				pane->priv->width, pane->priv->height);
+	}
+
+	return figure;
+}
+
+static void
+translate(DrawingPane *pane, gint *x, gint *y) {
+	//*x -= pane->priv->width / 2;
+	//*y -= pane->priv->height / 2;
+	//*y = -1 * *y;
 }
