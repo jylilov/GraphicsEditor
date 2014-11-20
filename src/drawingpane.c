@@ -17,12 +17,16 @@ struct _DrawingPanePrivate
 	cairo_surface_t *surface;
 	GtkDrawingArea *drawing_area;
 	GtkScrolledWindow *scrolled_window;
+	gdouble width_before_scale;
+	gdouble height_before_scale;
+	gdouble scale_x_fixed;
+	gdouble scale_y_fixed;
+	gboolean was_scaled;
 };
 
 static void drawing_pane_constructed(GObject *obj);
 static void drawing_pane_finalize(GObject *obj);
 static void drawing_pane_set_handlers(DrawingPane *pane);
-static gboolean scrolled_window_scroll_event_handler(GtkScrolledWindow *widget, GdkEventScroll *event, gpointer user_data);
 static gboolean drawing_area_scroll_event_handler(GtkWidget *drawing_area, GdkEventScroll *event, gpointer user_data);
 static gboolean drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data);
 static gboolean drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, gpointer data);
@@ -30,57 +34,18 @@ static gboolean drawing_area_button_press_event_handler (GtkWidget *widget, GdkE
 static gboolean drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data);
 static void draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane);
 static void draw_figure(cairo_t *cr, GList *figure, DrawingPane *pane);
+static void translate(DrawingPane *pane, gint *x, gint *y);
 static void clear_figure(GList **figure);
+static void init_surface(DrawingPane *pane);
+static void refresh_surface(DrawingPane *pane);
 static GraphicsEditorDrawingModeType get_drawing_mode(DrawingPane *pane);
 static gboolean is_line_drawing_mode(GraphicsEditorDrawingModeType mode);
-static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static void move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x2, gint y2);
-static void draw_net(cairo_t* cr, DrawingPane *pane);
-static void refresh_surface(DrawingPane *pane);
-static void init_surface(DrawingPane *pane);
+static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static GList *get_hyperbole(DrawingPane *pane);
-static void translate(DrawingPane *pane, gint *x, gint *y);
+static void draw_net(cairo_t* cr, DrawingPane *pane);
 
 G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN);
-
-static gboolean
-scrolled_window_scroll_event_handler(GtkScrolledWindow *widget, GdkEventScroll *event, gpointer user_data)
-{
-	DrawingPanePrivate *priv;
-
-	priv = DRAWING_PANE(user_data)->priv;
-	if ((event->state & GDK_CONTROL_MASK) == GDK_CONTROL_MASK) {
-
-		gint direction;
-
-		switch (event->direction) {
-		case GDK_SCROLL_UP:
-			direction = 1;
-			break;
-		case GDK_SCROLL_DOWN:
-			direction = -1;
-			break;
-		default:
-			return FALSE;
-		}
-
-		gdouble delta_hadjustment_value = event->x / priv->cell_size;
-		gdouble delta_vadjustment_value = event->y / priv->cell_size;
-
-		GtkAdjustment *hadjustment = gtk_scrolled_window_get_hadjustment(widget);
-		GtkAdjustment *vadjustment = gtk_scrolled_window_get_vadjustment(widget);
-
-		gdouble goal_hadjustment_value = gtk_adjustment_get_value(hadjustment) + delta_hadjustment_value * direction;
-		gdouble goal_vadjustment_value = gtk_adjustment_get_value(vadjustment) + delta_vadjustment_value * direction;
-
-		gtk_adjustment_set_value(hadjustment, goal_hadjustment_value);
-		gtk_adjustment_set_value(vadjustment, goal_vadjustment_value);
-
-		return TRUE;
-	} else {
-		return FALSE;
-	}
-}
 
 static gboolean
 drawing_area_scroll_event_handler(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
@@ -103,20 +68,31 @@ drawing_area_scroll_event_handler(GtkWidget *widget, GdkEventScroll *event, gpoi
 			return TRUE;
 		}
 
-		gint widget_width;
-		gint widget_height;
+		gint widget_width, new_width;
+		gint widget_height, new_height;
 
 		gtk_widget_get_size_request(GTK_WIDGET(priv->drawing_area), &widget_width, &widget_height);
-		widget_width += direction * priv->width;
-		widget_height += direction * priv->height;
-		if (widget_width > 0 &&
-				widget_height > 0 &&
-				widget_width <= priv->width * 100 &&
-				widget_height <= priv->height * 100) {
-			gtk_widget_set_size_request(GTK_WIDGET(priv->drawing_area), widget_width, widget_height);
-		} else {
-			return TRUE;
+
+		new_width = widget_width + direction * priv->width;
+		new_height = widget_height + direction * priv->height;
+
+		if (new_width > 0 &&
+				new_height > 0 &&
+				new_width <= priv->width * 100 &&
+				new_height <= priv->height * 100) {
+
+			if (!priv->was_scaled) {
+				priv->scale_x_fixed = event->x;
+				priv->scale_y_fixed = event->y;
+				priv->width_before_scale = widget_width;
+				priv->height_before_scale = widget_height;
+				priv->was_scaled = TRUE;
+			}
+
+			gtk_widget_set_size_request(GTK_WIDGET(priv->drawing_area), new_width, new_height);
 		}
+
+		return TRUE;
 	}
 
 	return FALSE;
@@ -130,6 +106,7 @@ drawing_pane_init (DrawingPane *pane)
 	pane->priv->cell_size = 1;
 	pane->priv->height = DRAWING_PANE_DEFAULT_HEIGHT;
 	pane->priv->width = DRAWING_PANE_DEFAULT_WIDTH;
+	pane->priv->was_scaled = FALSE;
 }
 
 static void
@@ -177,11 +154,6 @@ drawing_pane_set_handlers(DrawingPane *pane)
 	g_signal_connect(priv->drawing_area,
 			"scroll-event",
 			G_CALLBACK(drawing_area_scroll_event_handler),
-			pane);
-
-	g_signal_connect(priv->scrolled_window,
-			"scroll-event",
-			G_CALLBACK(scrolled_window_scroll_event_handler),
 			pane);
 
 	g_signal_connect(priv->drawing_area,
@@ -338,7 +310,41 @@ drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *even
 
 	priv = DRAWING_PANE(data)->priv;
 
-	priv->cell_size = gtk_widget_get_allocated_width(GTK_WIDGET(priv->drawing_area)) / priv->width;
+	gint current_width;
+	gint current_height;
+
+	gtk_widget_get_size_request(GTK_WIDGET(priv->drawing_area), &current_width, &current_height);
+
+	if (priv->was_scaled) {
+		GtkAdjustment *hadjustment = gtk_scrolled_window_get_hadjustment(priv->scrolled_window);
+		GtkAdjustment *vadjustment = gtk_scrolled_window_get_vadjustment(priv->scrolled_window);
+
+		gdouble vadj_value = gtk_adjustment_get_value(vadjustment);
+		gdouble hadj_value = gtk_adjustment_get_value(hadjustment);
+
+		// if drawing_area does not occupy the entire scrolled_window
+		if (vadj_value == 0) {
+			vadj_value = (priv->height_before_scale -
+					gtk_widget_get_allocated_height(GTK_WIDGET(priv->scrolled_window))) / 2;
+		}
+
+		if (hadj_value == 0) {
+			hadj_value = (priv->width_before_scale -
+					gtk_widget_get_allocated_width(GTK_WIDGET(priv->scrolled_window))) / 2;
+		}
+
+		gdouble goal_hadjustment_value = priv->scale_x_fixed * current_width / priv->width_before_scale
+				- priv->scale_x_fixed + hadj_value;
+		gdouble goal_vadjustment_value = priv->scale_y_fixed * current_height / priv->height_before_scale
+				- priv->scale_y_fixed + vadj_value;
+
+		gtk_adjustment_set_value(hadjustment, goal_hadjustment_value);
+		gtk_adjustment_set_value(vadjustment, goal_vadjustment_value);
+
+		priv->was_scaled = FALSE;
+	}
+
+	priv->cell_size = current_width / priv->width;
 
 	init_surface(DRAWING_PANE(data));
 
