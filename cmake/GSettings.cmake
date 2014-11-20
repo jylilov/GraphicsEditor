@@ -11,8 +11,12 @@ if (NOT GLIB_COMPILE_SCHEMAS)
 message(FATAL "Could not find glib-compile-schemas")
 endif()
 
+file(MAKE_DIRECTORY ${output_dir})
+
 # Command to compile the schemas
-execute_process(COMMAND ${GLIB_COMPILE_SCHEMAS} --targetdir=${output_dir} ${schemas_dir})
+execute_process(
+    COMMAND ${GLIB_COMPILE_SCHEMAS} --targetdir=${output_dir} ${schemas_dir}
+)
 
 endfunction()
 
