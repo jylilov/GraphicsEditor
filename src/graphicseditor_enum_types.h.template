@@ -14,7 +14,7 @@ G_BEGIN_DECLS
 /*** END file-production ***/
 
 /*** BEGIN enumeration-production ***/
-#define GRAPHICSEDITOR_@ENUMSHORT@	(@enum_name@_get_type())
+#define GRAPHICS_@ENUMSHORT@	(@enum_name@_get_type())
 GType @enum_name@_get_type	(void) G_GNUC_CONST;
 
 /*** END enumeration-production ***/

@@ -50,7 +50,7 @@ graphicseditor_window_class_init (GraphicsEditorWindowClass *class)
 					"drawing-mode",
 					"Drawing mode",
 					"Selected drawing mode, eg: dda-line, hyperbole, etc.",
-					GRAPHICSEDITOR_DRAWING_MODE_TYPE,
+					GRAPHICS_EDITOR_DRAWING_MODE_TYPE,
 					GRAPHICSEDITOR_DRAWING_MODE_NONE,
 					G_PARAM_READWRITE));
 
@@ -128,6 +128,16 @@ graphicseditor_window_set_toolpalette(GraphicsEditorWindow *win)
 	item = gtk_toggle_tool_button_new();
 	g_object_set(item, "label", "Hyperbole", NULL);
 	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::hyperbole");
+	gtk_tool_item_group_insert(group, item, i++);
+
+	gtk_container_add(GTK_CONTAINER(win->priv->tool_palette), GTK_WIDGET(group));
+
+	group = GTK_TOOL_ITEM_GROUP(gtk_tool_item_group_new("Interpolation and antialiasing"));
+	i = 0;
+
+	item = gtk_toggle_tool_button_new();
+	g_object_set(item, "label", "B-spline", NULL);
+	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::b-spline");
 	gtk_tool_item_group_insert(group, item, i++);
 
 	gtk_container_add(GTK_CONTAINER(win->priv->tool_palette), GTK_WIDGET(group));

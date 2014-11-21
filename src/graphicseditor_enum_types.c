@@ -29,6 +29,9 @@ graphics_editor_drawing_mode_type_get_type (void)
 			{ GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE,
 			  "GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE",
 			  "hyperbole" },
+			{ GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE,
+			  "GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE",
+			  "b-spline" },
 			{ 0, NULL, NULL }
 		};
 		the_type = g_enum_register_static (

@@ -1,4 +1,5 @@
 #include "drawingpane_utils.h"
+#include "matrix_utils.h"
 #include <math.h>
 
 #define SQR(A) (A) * (A)
@@ -255,4 +256,60 @@ GList *get_hyperbole_figure(gint a, gint b, gint x0, gint y0, gint width, gint h
 	}
 
 	return list;
+}
+
+static mat4 b_spline = {
+		{-1, 3, -3, 1},
+		{3, -6, 0, 4},
+		{-3, 3, 3, 1},
+		{1, 0, 0, 0}
+};
+
+GList *
+get_b_spline_figure(GList *points, gdouble step)
+{
+	GList *figure;
+    Point *point;
+    gdouble t;
+    gint i;
+    gint x, y;
+    gdouble double_x, double_y;
+    vec4 result;
+    gint n;
+
+    n = g_list_length(points);
+	figure  = NULL;
+
+    gdouble array[2][n + 4];
+
+    point = points->data;
+    array[0][0] = array[0][1] = array[0][2] = point->x;
+    array[1][0] = array[1][1] = array[1][2] = point->y;
+    for (i = 3; i < n + 2; ++i) {
+        points = g_list_next(points);
+        point = points->data;
+
+        array[0][i] = point->x;
+        array[1][i] = point->y;
+    }
+    array[0][i] = array[0][i + 1] = point->x;
+    array[1][i] = array[1][i + 1] = point->y;
+
+
+	for (i = 1; i <= n + 1; ++i) {
+		for (t = 0; t < 1 + 1e-5; t += step) {
+			vec4 vec_t = {pow(t, 3), pow(t, 2), t, 1};
+
+            multiplication_mat4_vec4(result, b_spline, vec_t);
+            multiplication_vec4_vec4(&double_x, array[0] + i - 1, result);
+            multiplication_vec4_vec4(&double_y, array[1] + i - 1, result);
+
+			x = round(double_x / 6);
+			y = round(double_y / 6);
+
+			add_pixel(&figure, x, y);
+		}
+	}
+
+	return figure;
 }

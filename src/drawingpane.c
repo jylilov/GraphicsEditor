@@ -1,7 +1,6 @@
 #include "drawingpane.h"
 #include "drawingpane_utils.h"
 #include "graphicseditor_utils.h"
-#include "graphicseditor_enum_types.h"
 
 #include <math.h>
 
@@ -17,11 +16,15 @@ struct _DrawingPanePrivate
 	cairo_surface_t *surface;
 	GtkDrawingArea *drawing_area;
 	GtkScrolledWindow *scrolled_window;
+
 	gdouble width_before_scale;
 	gdouble height_before_scale;
 	gdouble scale_x_fixed;
 	gdouble scale_y_fixed;
 	gboolean was_scaled;
+
+	GList *b_spline_points;
+	GList *b_spline;
 };
 
 static void drawing_pane_constructed(GObject *obj);
@@ -107,6 +110,8 @@ drawing_pane_init (DrawingPane *pane)
 	pane->priv->height = DRAWING_PANE_DEFAULT_HEIGHT;
 	pane->priv->width = DRAWING_PANE_DEFAULT_WIDTH;
 	pane->priv->was_scaled = FALSE;
+	pane->priv->b_spline = NULL;
+	pane->priv->b_spline_points = NULL;
 }
 
 static void
@@ -268,8 +273,7 @@ refresh_surface(DrawingPane *pane) {
 	cairo_set_source_rgb (cr, 1, 1, 1);
 	cairo_paint (cr);
 
-	figure_list = priv->figure_list;
-
+    figure_list = priv->figure_list;
 	while (figure_list != NULL) {
 		figure = figure_list->data;
 		draw_figure(cr, figure, pane);
@@ -294,6 +298,28 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 
 	if (priv->editing_line != NULL) {
 		draw_figure(cr, priv->editing_line, DRAWING_PANE(data));
+	}
+
+	if (priv->b_spline)
+		draw_figure(cr, priv->b_spline, DRAWING_PANE(data));
+
+	GList *list;
+
+	list = priv->b_spline_points;
+
+	while (list != NULL) {
+		Point *point;
+		point = list->data;
+
+		cairo_set_line_width(cr, 1);
+		cairo_set_source_rgb(cr, 0, 0, 1);
+		cairo_arc(cr, point->x, point->y, 5, 0, 2 * M_PI);
+		cairo_fill_preserve(cr);
+
+		cairo_set_source_rgb(cr, 0, 0, 0.5);
+		cairo_stroke(cr);
+
+		list = g_list_next(list);
 	}
 
 	cairo_scale(cr, 1.0 / priv->cell_size, 1.0 / priv->cell_size);
@@ -388,10 +414,24 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
 					priv->figure_list = g_list_append(priv->figure_list, hyperbole);
 					refresh_surface(DRAWING_PANE(data));
 				}
+			} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+				x = floor(event->x / priv->cell_size);
+				y = floor(event->y / priv->cell_size);
+				Point *point = g_malloc(sizeof(Point));
+				point->x = x;
+				point->y = y;
+				priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+
+
+				//translate(DRAWING_PANE(data), &x, &y);
+				clear_figure(&priv->b_spline);
+				priv->b_spline = get_b_spline_figure(priv->b_spline_points, 0.005);
 			}
 			break;
 		case 3:
 			clear_figure(&priv->editing_line);
+			clear_figure(&priv->b_spline_points);
+			clear_figure(&priv->b_spline);
 			break;
 		default:
 			break;
@@ -564,6 +604,7 @@ get_hyperbole(DrawingPane *pane)
 	return figure;
 }
 
+//TODO
 static void
 translate(DrawingPane *pane, gint *x, gint *y) {
 	//*x -= pane->priv->width / 2;
