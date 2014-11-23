@@ -6,6 +6,11 @@
 
 #define STEP 0.005
 
+typedef struct _Color Color;
+struct _Color {
+    gdouble r, g, b;
+};
+
 typedef struct _Spline Spline;
 struct _Spline
 {
@@ -34,9 +39,13 @@ struct _DrawingPanePrivate
 	gboolean was_scaled;
 
 	GList *b_spline_points;
-	GList *b_spline;
+	GList *b_spline_pixels;
     GList *b_spliens;
 };
+
+static Color red_color = {1, 0, 0};
+static Color green_color = {0, 1, 0};
+static Color blue_color = {0, 0, 1};
 
 static void drawing_pane_constructed(GObject *obj);
 static void drawing_pane_finalize(GObject *obj);
@@ -49,7 +58,7 @@ static gboolean drawing_area_motion_notify_event_handler (GtkWidget *widget, Gdk
 static void draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane);
 static void draw_figure(cairo_t *cr, GList *figure, DrawingPane *pane);
 static void translate(DrawingPane *pane, gint *x, gint *y);
-static void clear_figure(GList **figure);
+static void clear_list(GList **figure);
 static void init_surface(DrawingPane *pane);
 static void refresh_surface(DrawingPane *pane);
 static GraphicsEditorDrawingModeType get_drawing_mode(DrawingPane *pane);
@@ -58,8 +67,10 @@ static void move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **fi
 static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static GList *get_hyperbole(DrawingPane *pane);
 static void draw_net(cairo_t* cr, DrawingPane *pane);
+static void draw_point(cairo_t *cr, Point *point, Color color);
+static void draw_key_points(cairo_t *cr, GList *list, Color color);
 
-G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN);
+G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN)
 
 static gboolean
 drawing_area_scroll_event_handler(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
@@ -121,7 +132,7 @@ drawing_pane_init (DrawingPane *pane)
 	pane->priv->height = DRAWING_PANE_DEFAULT_HEIGHT;
 	pane->priv->width = DRAWING_PANE_DEFAULT_WIDTH;
 	pane->priv->was_scaled = FALSE;
-	pane->priv->b_spline = NULL;
+	pane->priv->b_spline_pixels = NULL;
 	pane->priv->b_spline_points = NULL;
     pane->priv->b_spliens = NULL;
 }
@@ -280,11 +291,12 @@ refresh_surface(DrawingPane *pane) {
     Spline *spline;
 
 	priv = DRAWING_PANE(pane)->priv;
-
 	cr = cairo_create (priv->surface);
 
 	cairo_set_source_rgb (cr, 1, 1, 1);
 	cairo_paint (cr);
+
+    // Adding on surface lines(1st and 2nd order)
 
     figure_list = priv->figure_list;
 	while (figure_list != NULL) {
@@ -292,6 +304,8 @@ refresh_surface(DrawingPane *pane) {
 		draw_figure(cr, figure, pane);
 		figure_list = g_list_next(figure_list);
 	}
+
+    // Adding on surface splines
 
     figure_list = priv->b_spliens;
     while (figure_list != NULL) {
@@ -310,46 +324,74 @@ gboolean
 drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 {
 	DrawingPanePrivate *priv;
-	GList *figure, *figure_list;
+    GraphicsEditorDrawingModeType drawing_mode;
+    Spline *spline;
+    GList *list;
 
 	priv = DRAWING_PANE(data)->priv;
+    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
 	cairo_scale(cr, priv->cell_size, priv->cell_size);
 
+    //Drawing static surface
+
 	cairo_set_source_surface (cr, priv->surface, 0, 0);
 	cairo_paint (cr);
+
+    //Drawing figures which are creating
 
 	if (priv->editing_line != NULL) {
 		draw_figure(cr, priv->editing_line, DRAWING_PANE(data));
 	}
 
-	if (priv->b_spline)
-		draw_figure(cr, priv->b_spline, DRAWING_PANE(data));
+	if (priv->b_spline_pixels)
+		draw_figure(cr, priv->b_spline_pixels, DRAWING_PANE(data));
 
-	GList *list;
+    //Drawing key points
 
-	list = priv->b_spline_points;
+    if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+        draw_key_points(cr, priv->b_spline_points, green_color);
 
-	while (list != NULL) {
-		Point *point;
-		point = list->data;
+        list = priv->b_spliens;
+        while (list != NULL) {
+            spline = list->data;
+            draw_key_points(cr, spline->points, blue_color);
+            list = g_list_next(list);
+        }
+    }
 
-		cairo_set_line_width(cr, 1);
-		cairo_set_source_rgb(cr, 0, 0, 1);
-		cairo_arc(cr, point->x, point->y, 5, 0, 2 * M_PI);
-		cairo_fill_preserve(cr);
-
-		cairo_set_source_rgb(cr, 0, 0, 0.5);
-		cairo_stroke(cr);
-
-		list = g_list_next(list);
-	}
-
+    //Finish drawing figures
 	cairo_scale(cr, 1.0 / priv->cell_size, 1.0 / priv->cell_size);
 
+    //Drawing net;
 	draw_net(cr, DRAWING_PANE(data));
 
 	return TRUE;
+}
+
+static void
+draw_key_points(cairo_t *cr, GList *list, Color color)
+{
+    while (list != NULL) {
+		Point *point;
+		point = list->data;
+
+        draw_point(cr, point, color);
+
+        list = g_list_next(list);
+	}
+}
+
+static void
+draw_point(cairo_t *cr, Point *point, Color color)
+{
+    cairo_set_line_width(cr, 1);
+    cairo_set_source_rgb(cr, color.r, color.g, color.b);
+    cairo_arc(cr, point->x, point->y, 5, 0, 2 * M_PI);
+    cairo_fill_preserve(cr);
+
+    cairo_set_source_rgb(cr, color.r * 0.5, color.g * 0.5, color.b * 0.5);
+    cairo_stroke(cr);
 }
 
 gboolean
@@ -402,85 +444,94 @@ drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *even
 	return TRUE;
 }
 
+// TODO then switch "drawing-mode" reset editing_line, etc.
 gboolean
 drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data)
 {
 	DrawingPanePrivate *priv;
+    Spline *spline;
 	gint x, y;
 	GraphicsEditorDrawingModeType drawing_mode;
     drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
 	priv = DRAWING_PANE(data)->priv;
-	switch (event->button) {
+    if (is_line_drawing_mode(drawing_mode)) {
+        switch(event->button) {
         case 1:
-            if (is_line_drawing_mode(drawing_mode)) {
-                x = floor(event->x / priv->cell_size);
-                y = floor(event->y / priv->cell_size);
-                translate(DRAWING_PANE(data), &x, &y);
-                if (priv->editing_line == NULL) {
-                    priv->editing_line = get_line_figure(drawing_mode, x, y, x, y);
-                } else {
-                    move_line_end(drawing_mode, &priv->editing_line, x, y);
+            x = floor(event->x / priv->cell_size);
+            y = floor(event->y / priv->cell_size);
+            translate(DRAWING_PANE(data), &x, &y);
+            if (priv->editing_line == NULL) {
+                priv->editing_line = get_line_figure(drawing_mode, x, y, x, y);
+            } else {
+                move_line_end(drawing_mode, &priv->editing_line, x, y);
 
-                    if (priv->editing_line == NULL) {
-                        g_error("Editing line not NULL when drawing mode not line");
-                    }
+                priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
+                priv->editing_line = NULL;
 
-                    priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
-                    priv->editing_line = NULL;
-
-                    refresh_surface(DRAWING_PANE(data));
-                }
-            } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE) {
-                GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
-                if (hyperbole) {
-                    priv->figure_list = g_list_append(priv->figure_list, hyperbole);
-                    refresh_surface(DRAWING_PANE(data));
-                }
-            } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
-                x = floor(event->x / priv->cell_size);
-                y = floor(event->y / priv->cell_size);
-                Point *point = g_malloc(sizeof(Point));
-                point->x = x;
-                point->y = y;
-                priv->b_spline_points = g_list_append(priv->b_spline_points, point);
-
-                //translate(DRAWING_PANE(data), &x, &y);
-                clear_figure(&priv->b_spline);
-                priv->b_spline = get_b_spline_figure(priv->b_spline_points, STEP);
+                refresh_surface(DRAWING_PANE(data));
             }
             break;
         case 3:
-            clear_figure(&priv->editing_line);
-            if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
-                Spline *spline = g_malloc(sizeof(Spline));
+            clear_list(&priv->editing_line);
+            break;
+        }
+
+    } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE) {
+        GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
+        if (hyperbole) {
+            priv->figure_list = g_list_append(priv->figure_list, hyperbole);
+            refresh_surface(DRAWING_PANE(data));
+        }
+    } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+        switch (event->button) {
+        case 1:
+            x = floor(event->x / priv->cell_size);
+            y = floor(event->y / priv->cell_size);
+
+            Point *point = g_malloc(sizeof(Point));
+            point->x = x;
+            point->y = y;
+
+            priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+
+            //translate(DRAWING_PANE(data), &x, &y);
+
+            clear_list(&priv->b_spline_pixels);
+            priv->b_spline_pixels = get_b_spline_figure(priv->b_spline_points, STEP);
+            break;
+        case 3:
+            if (priv->b_spline_points != NULL) {
+                spline = g_malloc(sizeof(Spline));
+
                 spline->need_refresh_pixels = FALSE;
-                spline->pixels = priv->b_spline;
+                spline->pixels = priv->b_spline_pixels;
                 spline->points = priv->b_spline_points;
+
                 priv->b_spliens = g_list_append(priv->b_spliens, spline);
-                priv->b_spline = NULL;
+                priv->b_spline_pixels = NULL;
                 priv->b_spline_points = NULL;
+
                 refresh_surface(DRAWING_PANE(data));
-                gtk_widget_queue_draw(GTK_WIDGET(data));
             }
-			break;
-		default:
-			break;
-	}
+            break;
+        }
+
+    }
+
 	gtk_widget_queue_draw(widget);
 
 	return FALSE;
 }
 
-static void clear_figure(GList **figure) {
-	Pixel *pixel;
+static void clear_list(GList **figure) {
+	gpointer obj;
 	while (*figure != NULL) {
-		pixel = (*figure)->data;
-		*figure = g_list_remove(*figure, pixel);
-		g_free(pixel);
+		obj = (*figure)->data;
+		*figure = g_list_remove(*figure, obj);
+		g_free(obj);
 	}
 }
-
 
 static GList *
 get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2) {
@@ -519,13 +570,13 @@ move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x
 	x1 = start_pixel->x;
 	y1 = start_pixel->y;
 
-	clear_figure(figure);
+    clear_list(figure);
 
 	*figure = get_line_figure(drawing_mode, x1, y1, x2, y2);
 }
 
 
-//TODO Optimization
+//TODO Drawing net optimization
 static void draw_net(cairo_t* cr, DrawingPane *pane) {
 	gint cell_size = pane->priv->cell_size;
 	gint height = pane->priv->height;
@@ -554,28 +605,25 @@ gboolean
 drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data)
 {
 	DrawingPanePrivate *priv;
-	Pixel *start_pixel;
-	gint x1, y1, x2, y2;
+	gint x, y;
 	GraphicsEditorDrawingModeType drawing_mode;
 
 	priv = DRAWING_PANE(data)->priv;
+    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
-	if (priv->editing_line != NULL) {
-		x2 = floor(event->x / priv->cell_size);
-		y2 = floor(event->y / priv->cell_size);
+    if (is_line_drawing_mode(drawing_mode)) {
+        if (priv->editing_line != NULL) {
+            x = floor(event->x / priv->cell_size);
+            y = floor(event->y / priv->cell_size);
 
-		drawing_mode = get_drawing_mode(DRAWING_PANE(data));
+            translate(DRAWING_PANE(data), &x, &y);
 
-		translate(DRAWING_PANE(data), &x2, &y2);
+            move_line_end(drawing_mode, &priv->editing_line, x, y);
 
-		move_line_end(drawing_mode, &priv->editing_line, x2, y2);
+            gtk_widget_queue_draw(widget);
+        }
+    }
 
-		if (priv->editing_line == NULL) {
-			g_error("Editing line not NULL when drawing mode not line");
-		}
-
-		gtk_widget_queue_draw(widget);
-	}
 	return FALSE;
 }
 
