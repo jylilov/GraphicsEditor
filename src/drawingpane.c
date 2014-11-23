@@ -41,6 +41,8 @@ struct _DrawingPanePrivate
 	GList *b_spline_points;
 	GList *b_spline_pixels;
     GList *b_spliens;
+    Point *old_point;
+    Spline *move_spline;
 };
 
 static Color red_color = {1, 0, 0};
@@ -55,6 +57,7 @@ static gboolean drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpoin
 static gboolean drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, gpointer data);
 static gboolean drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data);
 static gboolean drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data);
+static gboolean drawing_area_button_realese_event_handler (GtkWidget *widget, GdkEventButton *event, gpointer data);
 static void draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane);
 static void draw_figure(cairo_t *cr, GList *figure, DrawingPane *pane);
 static void translate(DrawingPane *pane, gint *x, gint *y);
@@ -135,6 +138,8 @@ drawing_pane_init (DrawingPane *pane)
 	pane->priv->b_spline_pixels = NULL;
 	pane->priv->b_spline_points = NULL;
     pane->priv->b_spliens = NULL;
+    pane->priv->move_spline = NULL;
+    pane->priv->old_point = NULL;
 }
 
 static void
@@ -177,7 +182,8 @@ drawing_pane_set_handlers(DrawingPane *pane)
 	gtk_widget_set_events (GTK_WIDGET(priv->drawing_area), gtk_widget_get_events (GTK_WIDGET(priv->drawing_area))
 			| GDK_SCROLL_MASK
 			| GDK_POINTER_MOTION_MASK
-			| GDK_BUTTON_PRESS_MASK);
+			| GDK_BUTTON_PRESS_MASK
+            | GDK_BUTTON_RELEASE_MASK);
 
 	g_signal_connect(priv->drawing_area,
 			"scroll-event",
@@ -203,6 +209,11 @@ drawing_pane_set_handlers(DrawingPane *pane)
 			"button-press-event",
 			G_CALLBACK(drawing_area_button_press_event_handler),
 			pane);
+
+    g_signal_connect(priv->drawing_area,
+            "button-release-event",
+            G_CALLBACK(drawing_area_button_realese_event_handler),
+            pane);
 
 }
 
@@ -312,6 +323,7 @@ refresh_surface(DrawingPane *pane) {
         spline = figure_list->data;
         if (spline->need_refresh_pixels) {
             spline->pixels = get_b_spline_figure(spline->points, STEP);
+            spline->need_refresh_pixels = FALSE;
         }
         draw_figure(cr, spline->pixels, pane);
         figure_list = g_list_next(figure_list);
@@ -321,31 +333,30 @@ refresh_surface(DrawingPane *pane) {
 }
 
 gboolean
-drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
-{
-	DrawingPanePrivate *priv;
+drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
+    DrawingPanePrivate *priv;
     GraphicsEditorDrawingModeType drawing_mode;
     Spline *spline;
     GList *list;
 
-	priv = DRAWING_PANE(data)->priv;
+    priv = DRAWING_PANE(data)->priv;
     drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
-	cairo_scale(cr, priv->cell_size, priv->cell_size);
+    cairo_scale(cr, priv->cell_size, priv->cell_size);
 
     //Drawing static surface
 
-	cairo_set_source_surface (cr, priv->surface, 0, 0);
-	cairo_paint (cr);
+    cairo_set_source_surface(cr, priv->surface, 0, 0);
+    cairo_paint(cr);
 
     //Drawing figures which are creating
 
-	if (priv->editing_line != NULL) {
-		draw_figure(cr, priv->editing_line, DRAWING_PANE(data));
-	}
+    if (priv->editing_line != NULL) {
+        draw_figure(cr, priv->editing_line, DRAWING_PANE(data));
+    }
 
-	if (priv->b_spline_pixels)
-		draw_figure(cr, priv->b_spline_pixels, DRAWING_PANE(data));
+    if (priv->b_spline_pixels)
+        draw_figure(cr, priv->b_spline_pixels, DRAWING_PANE(data));
 
     //Drawing key points
 
@@ -360,6 +371,10 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
         }
     }
 
+    if (priv->old_point != NULL) {
+        draw_point(cr, priv->old_point, red_color);
+    }
+
     //Finish drawing figures
 	cairo_scale(cr, 1.0 / priv->cell_size, 1.0 / priv->cell_size);
 
@@ -372,11 +387,27 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data)
 static void
 draw_key_points(cairo_t *cr, GList *list, Color color)
 {
-    while (list != NULL) {
-		Point *point;
-		point = list->data;
+    gint i, n;
+    Point *point;
+    Color boundary_color;
 
-        draw_point(cr, point, color);
+    i = 0;
+
+    boundary_color = color;
+    boundary_color.r *= 0.5;
+    boundary_color.b *= 0.5;
+    boundary_color.g *= 0.5;
+
+    n = g_list_length(list);
+    while (list != NULL) {
+        i++;
+
+		point = list->data;
+        if (i == 1 || i == n) {
+            draw_point(cr, point, boundary_color);
+        } else {
+            draw_point(cr, point, color);
+        }
 
         list = g_list_next(list);
 	}
@@ -444,12 +475,45 @@ drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *even
 	return TRUE;
 }
 
+static gboolean
+drawing_area_button_realese_event_handler (GtkWidget *widget, GdkEventButton *event, gpointer data)
+{
+    DrawingPanePrivate *priv;
+    GraphicsEditorDrawingModeType drawing_mode;
+    gint x, y;
+
+    priv = DRAWING_PANE(data)->priv;
+    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
+
+    if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+        if (priv->move_spline != NULL) {
+            x = floor(event->x / priv->cell_size);
+            y = floor(event->y / priv->cell_size);
+
+            translate(DRAWING_PANE(data), &x, &y);
+
+            priv->old_point->x = x;
+            priv->old_point->y = y;
+
+            priv->move_spline->need_refresh_pixels = TRUE;
+
+            priv->move_spline = NULL;
+            priv->old_point = NULL;
+
+            refresh_surface(DRAWING_PANE(data));
+            gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
+        }
+    }
+}
+
 // TODO then switch "drawing-mode" reset editing_line, etc.
-gboolean
+static gboolean
 drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data)
 {
 	DrawingPanePrivate *priv;
+    Point *point;
     Spline *spline;
+    GList *spline_list, *point_list;
 	gint x, y;
 	GraphicsEditorDrawingModeType drawing_mode;
     drawing_mode = get_drawing_mode(DRAWING_PANE(data));
@@ -489,16 +553,39 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
             x = floor(event->x / priv->cell_size);
             y = floor(event->y / priv->cell_size);
 
-            Point *point = g_malloc(sizeof(Point));
-            point->x = x;
-            point->y = y;
+            if (priv->b_spline_points == NULL) {
+                spline_list = priv->b_spliens;
+                while (spline_list != NULL) {
+                    spline = spline_list->data;
+                    point_list = spline->points;
+                    while (point_list != NULL) {
+                        point = point_list->data;
+                        if (hypot(point->x - x, point->y - y) < 15) {
+                            priv->move_spline = spline;
+                            priv->old_point = point;
+                            goto end_cycles;
+                        }
+                        point_list = g_list_next(point_list);
+                    }
+                    spline_list = g_list_next(spline_list);
+                }
+            }
 
-            priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+            end_cycles:
 
-            //translate(DRAWING_PANE(data), &x, &y);
+            if (priv->move_spline == NULL) {
+                point = g_malloc(sizeof(Point));
+                point->x = x;
+                point->y = y;
 
-            clear_list(&priv->b_spline_pixels);
-            priv->b_spline_pixels = get_b_spline_figure(priv->b_spline_points, STEP);
+                priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+
+                //translate(DRAWING_PANE(data), &x, &y);
+
+                clear_list(&priv->b_spline_pixels);
+                priv->b_spline_pixels = get_b_spline_figure(priv->b_spline_points, STEP);
+            }
+
             break;
         case 3:
             if (priv->b_spline_points != NULL) {
