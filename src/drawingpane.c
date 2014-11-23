@@ -72,6 +72,7 @@ static GList *get_hyperbole(DrawingPane *pane);
 static void draw_net(cairo_t* cr, DrawingPane *pane);
 static void draw_point(cairo_t *cr, Point *point, Color color);
 static void draw_key_points(cairo_t *cr, GList *list, Color color);
+static void get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point);
 
 G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN)
 
@@ -476,6 +477,12 @@ drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *even
 }
 
 static gboolean
+is_point_boundary(Point *point, Spline *spline) {
+    return g_list_first(spline->points)->data == point
+            || g_list_last(spline->points)->data == point;
+}
+
+static gboolean
 drawing_area_button_realese_event_handler (GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
     DrawingPanePrivate *priv;
@@ -492,17 +499,82 @@ drawing_area_button_realese_event_handler (GtkWidget *widget, GdkEventButton *ev
 
             translate(DRAWING_PANE(data), &x, &y);
 
-            priv->old_point->x = x;
-            priv->old_point->y = y;
+            Point *near_point = NULL;
+            Spline *near_spline = NULL;
 
-            priv->move_spline->need_refresh_pixels = TRUE;
+            get_nearest_point_to(x, y, DRAWING_PANE(data), &near_spline, &near_point);
 
-            priv->move_spline = NULL;
-            priv->old_point = NULL;
 
-            refresh_surface(DRAWING_PANE(data));
-            gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
+            if (near_point != NULL && priv->old_point != near_point && near_spline != priv->move_spline
+                    && is_point_boundary(priv->old_point, priv->move_spline)
+                    && is_point_boundary(near_point, near_spline)) {
+                if (priv->old_point != priv->move_spline->points->data) {
+                    priv->move_spline->points = g_list_reverse(priv->move_spline->points);
+                }
+                if (near_spline->points->data == near_point) {
+                    near_spline->points = g_list_reverse(near_spline->points);
+                }
+
+                GList *list;
+                list = priv->move_spline->points;
+
+                while (list != NULL) {
+                    near_spline->points = g_list_append(near_spline->points, list->data);
+                    list = g_list_next(list);
+                }
+
+                clear_list(&priv->move_spline->pixels);
+                g_list_free(priv->move_spline->points);
+                priv->b_spliens = g_list_remove(priv->b_spliens, priv->move_spline);
+                g_free(priv->move_spline);
+
+                near_spline->need_refresh_pixels = TRUE;
+
+                priv->old_point = NULL;
+                priv->move_spline = NULL;
+            } else {
+                priv->old_point->x = x;
+                priv->old_point->y = y;
+
+                priv->move_spline->need_refresh_pixels = TRUE;
+
+                priv->move_spline = NULL;
+                priv->old_point = NULL;
+            }
         }
+
+        refresh_surface(DRAWING_PANE(data));
+        gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
+
+    }
+
+    return FALSE;
+}
+
+static void
+get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point)
+{
+    GList *spline_list, *point_list;
+    DrawingPanePrivate *priv;
+    Spline *spline;
+    Point *point;
+
+    priv = pane->priv;
+
+    spline_list = priv->b_spliens;
+    while (spline_list != NULL) {
+        spline = spline_list->data;
+        point_list = spline->points;
+        while (point_list != NULL) {
+            point = point_list->data;
+            if (hypot(point->x - x, point->y - y) < 15) {
+                *out_spline = spline;
+                *out_point = point;
+                return;
+            }
+            point_list = g_list_next(point_list);
+        }
+        spline_list = g_list_next(spline_list);
     }
 }
 
@@ -554,24 +626,8 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
             y = floor(event->y / priv->cell_size);
 
             if (priv->b_spline_points == NULL) {
-                spline_list = priv->b_spliens;
-                while (spline_list != NULL) {
-                    spline = spline_list->data;
-                    point_list = spline->points;
-                    while (point_list != NULL) {
-                        point = point_list->data;
-                        if (hypot(point->x - x, point->y - y) < 15) {
-                            priv->move_spline = spline;
-                            priv->old_point = point;
-                            goto end_cycles;
-                        }
-                        point_list = g_list_next(point_list);
-                    }
-                    spline_list = g_list_next(spline_list);
-                }
+                get_nearest_point_to(x, y, DRAWING_PANE(data), &priv->move_spline, &priv->old_point);
             }
-
-            end_cycles:
 
             if (priv->move_spline == NULL) {
                 point = g_malloc(sizeof(Point));
