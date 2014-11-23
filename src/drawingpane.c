@@ -4,6 +4,16 @@
 
 #include <math.h>
 
+#define STEP 0.005
+
+typedef struct _Spline Spline;
+struct _Spline
+{
+    GList *points;
+    GList *pixels;
+    gboolean need_refresh_pixels;
+};
+
 struct _DrawingPanePrivate
 {
 	GraphicsEditorWindow *window;
@@ -25,6 +35,7 @@ struct _DrawingPanePrivate
 
 	GList *b_spline_points;
 	GList *b_spline;
+    GList *b_spliens;
 };
 
 static void drawing_pane_constructed(GObject *obj);
@@ -112,6 +123,7 @@ drawing_pane_init (DrawingPane *pane)
 	pane->priv->was_scaled = FALSE;
 	pane->priv->b_spline = NULL;
 	pane->priv->b_spline_points = NULL;
+    pane->priv->b_spliens = NULL;
 }
 
 static void
@@ -265,6 +277,7 @@ refresh_surface(DrawingPane *pane) {
 	DrawingPanePrivate *priv;
 	cairo_t *cr;
 	GList *figure, *figure_list;
+    Spline *spline;
 
 	priv = DRAWING_PANE(pane)->priv;
 
@@ -279,6 +292,16 @@ refresh_surface(DrawingPane *pane) {
 		draw_figure(cr, figure, pane);
 		figure_list = g_list_next(figure_list);
 	}
+
+    figure_list = priv->b_spliens;
+    while (figure_list != NULL) {
+        spline = figure_list->data;
+        if (spline->need_refresh_pixels) {
+            spline->pixels = get_b_spline_figure(spline->points, STEP);
+        }
+        draw_figure(cr, spline->pixels, pane);
+        figure_list = g_list_next(figure_list);
+    }
 
 	cairo_destroy (cr);
 }
@@ -385,53 +408,61 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
 	DrawingPanePrivate *priv;
 	gint x, y;
 	GraphicsEditorDrawingModeType drawing_mode;
+    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
 	priv = DRAWING_PANE(data)->priv;
 	switch (event->button) {
-		case 1:
-			drawing_mode = get_drawing_mode(DRAWING_PANE(data));
-			if (is_line_drawing_mode(drawing_mode)) {
-				x = floor(event->x / priv->cell_size);
-				y = floor(event->y / priv->cell_size);
-				translate(DRAWING_PANE(data), &x, &y);
-				if (priv->editing_line == NULL) {
-					priv->editing_line = get_line_figure(drawing_mode, x, y, x, y);
-				} else {
-					move_line_end(drawing_mode, &priv->editing_line, x, y);
+        case 1:
+            if (is_line_drawing_mode(drawing_mode)) {
+                x = floor(event->x / priv->cell_size);
+                y = floor(event->y / priv->cell_size);
+                translate(DRAWING_PANE(data), &x, &y);
+                if (priv->editing_line == NULL) {
+                    priv->editing_line = get_line_figure(drawing_mode, x, y, x, y);
+                } else {
+                    move_line_end(drawing_mode, &priv->editing_line, x, y);
 
-					if (priv->editing_line == NULL) {
-						g_error("Editing line not NULL when drawing mode not line");
-					}
+                    if (priv->editing_line == NULL) {
+                        g_error("Editing line not NULL when drawing mode not line");
+                    }
 
-					priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
-					priv->editing_line = NULL;
+                    priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
+                    priv->editing_line = NULL;
 
-					refresh_surface(DRAWING_PANE(data));
-				}
-			} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE){
-				GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
-				if (hyperbole) {
-					priv->figure_list = g_list_append(priv->figure_list, hyperbole);
-					refresh_surface(DRAWING_PANE(data));
-				}
-			} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
-				x = floor(event->x / priv->cell_size);
-				y = floor(event->y / priv->cell_size);
-				Point *point = g_malloc(sizeof(Point));
-				point->x = x;
-				point->y = y;
-				priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+                    refresh_surface(DRAWING_PANE(data));
+                }
+            } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE) {
+                GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
+                if (hyperbole) {
+                    priv->figure_list = g_list_append(priv->figure_list, hyperbole);
+                    refresh_surface(DRAWING_PANE(data));
+                }
+            } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+                x = floor(event->x / priv->cell_size);
+                y = floor(event->y / priv->cell_size);
+                Point *point = g_malloc(sizeof(Point));
+                point->x = x;
+                point->y = y;
+                priv->b_spline_points = g_list_append(priv->b_spline_points, point);
 
-
-				//translate(DRAWING_PANE(data), &x, &y);
-				clear_figure(&priv->b_spline);
-				priv->b_spline = get_b_spline_figure(priv->b_spline_points, 0.005);
-			}
-			break;
-		case 3:
-			clear_figure(&priv->editing_line);
-			clear_figure(&priv->b_spline_points);
-			clear_figure(&priv->b_spline);
+                //translate(DRAWING_PANE(data), &x, &y);
+                clear_figure(&priv->b_spline);
+                priv->b_spline = get_b_spline_figure(priv->b_spline_points, STEP);
+            }
+            break;
+        case 3:
+            clear_figure(&priv->editing_line);
+            if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+                Spline *spline = g_malloc(sizeof(Spline));
+                spline->need_refresh_pixels = FALSE;
+                spline->pixels = priv->b_spline;
+                spline->points = priv->b_spline_points;
+                priv->b_spliens = g_list_append(priv->b_spliens, spline);
+                priv->b_spline = NULL;
+                priv->b_spline_points = NULL;
+                refresh_surface(DRAWING_PANE(data));
+                gtk_widget_queue_draw(GTK_WIDGET(data));
+            }
 			break;
 		default:
 			break;
