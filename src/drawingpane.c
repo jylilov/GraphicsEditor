@@ -57,7 +57,7 @@ static gboolean drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpoin
 static gboolean drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *event, gpointer data);
 static gboolean drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data);
 static gboolean drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data);
-static gboolean drawing_area_button_realese_event_handler (GtkWidget *widget, GdkEventButton *event, gpointer data);
+static gboolean drawing_area_button_release_event_handler(GtkWidget *widget, GdkEventButton *event, gpointer data);
 static void draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane);
 static void draw_figure(cairo_t *cr, GList *figure, DrawingPane *pane);
 static void translate(DrawingPane *pane, gint *x, gint *y);
@@ -73,6 +73,7 @@ static void draw_net(cairo_t* cr, DrawingPane *pane);
 static void draw_point(cairo_t *cr, Point *point, Color color);
 static void draw_key_points(cairo_t *cr, GList *list, Color color);
 static void get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point);
+static gboolean is_point_boundary(Point *point, Spline *spline);
 
 G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN)
 
@@ -213,7 +214,7 @@ drawing_pane_set_handlers(DrawingPane *pane)
 
     g_signal_connect(priv->drawing_area,
             "button-release-event",
-            G_CALLBACK(drawing_area_button_realese_event_handler),
+            G_CALLBACK(drawing_area_button_release_event_handler),
             pane);
 
 }
@@ -483,7 +484,7 @@ is_point_boundary(Point *point, Spline *spline) {
 }
 
 static gboolean
-drawing_area_button_realese_event_handler (GtkWidget *widget, GdkEventButton *event, gpointer data)
+drawing_area_button_release_event_handler(GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
     DrawingPanePrivate *priv;
     GraphicsEditorDrawingModeType drawing_mode;
@@ -551,6 +552,8 @@ drawing_area_button_realese_event_handler (GtkWidget *widget, GdkEventButton *ev
     return FALSE;
 }
 
+
+// TODO use minimal distance
 static void
 get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point)
 {
@@ -625,21 +628,41 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
             x = floor(event->x / priv->cell_size);
             y = floor(event->y / priv->cell_size);
 
-            if (priv->b_spline_points == NULL) {
-                get_nearest_point_to(x, y, DRAWING_PANE(data), &priv->move_spline, &priv->old_point);
-            }
+            translate(DRAWING_PANE(data), &x, &y);
 
-            if (priv->move_spline == NULL) {
-                point = g_malloc(sizeof(Point));
-                point->x = x;
-                point->y = y;
+            if (event->state & GDK_SHIFT_MASK == GDK_SHIFT_MASK) {
+                get_nearest_point_to(x, y, DRAWING_PANE(data), &spline, &point);
+                if (point != NULL) {
+                    if (g_list_length(spline->points) > 1) {
+                        spline->points = g_list_remove(spline->points, point);
+                        spline->need_refresh_pixels = TRUE;
+                        g_free(point);
+                    } else {
+                        clear_list(&spline->points);
+                        clear_list(&spline->pixels);
+                        priv->b_spliens = g_list_remove(priv->b_spliens, spline);
+                        g_free(spline);
+                    }
+                    refresh_surface(DRAWING_PANE(data));
+                }
+            } else {
 
-                priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+                if (priv->b_spline_points == NULL) {
+                    get_nearest_point_to(x, y, DRAWING_PANE(data), &priv->move_spline, &priv->old_point);
+                }
 
-                //translate(DRAWING_PANE(data), &x, &y);
+                if (priv->move_spline == NULL) {
+                    point = g_malloc(sizeof(Point));
+                    point->x = x;
+                    point->y = y;
 
-                clear_list(&priv->b_spline_pixels);
-                priv->b_spline_pixels = get_b_spline_figure(priv->b_spline_points, STEP);
+                    priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+
+                    //translate(DRAWING_PANE(data), &x, &y);
+
+                    clear_list(&priv->b_spline_pixels);
+                    priv->b_spline_pixels = get_b_spline_figure(priv->b_spline_points, STEP);
+                }
             }
 
             break;
