@@ -74,6 +74,7 @@ static void draw_point(cairo_t *cr, Point *point, Color color);
 static void draw_key_points(cairo_t *cr, GList *list, Color color);
 static void get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point);
 static gboolean is_point_boundary(Point *point, Spline *spline);
+static void drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data);
 
 G_DEFINE_TYPE_WITH_PRIVATE(DrawingPane, drawing_pane, GTK_TYPE_BIN)
 
@@ -216,7 +217,21 @@ drawing_pane_set_handlers(DrawingPane *pane)
             "button-release-event",
             G_CALLBACK(drawing_area_button_release_event_handler),
             pane);
+}
 
+static void
+drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data)
+{
+	DrawingPanePrivate *priv;
+
+	priv = DRAWING_PANE(data)->priv;
+
+	clear_list(&priv->editing_line);
+	clear_list(&priv->b_spline_pixels);
+	clear_list(&priv->b_spline_points);
+
+	refresh_surface(DRAWING_PANE(data));
+	gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
 }
 
 static void
@@ -244,6 +259,11 @@ drawing_pane_new_with_size (GraphicsEditorWindow *win, gint width, gint height)
 	pane->priv->window = win;
 	pane->priv->width = width;
 	pane->priv->height = height;
+
+	g_signal_connect(pane->priv->window,
+			"notify::drawing-mode",
+			G_CALLBACK(drawing_mode_changed),
+			pane);
 
 	return pane;
 }
@@ -581,7 +601,6 @@ get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Poi
     }
 }
 
-// TODO then switch "drawing-mode" reset editing_line, etc.
 static gboolean
 drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data)
 {
