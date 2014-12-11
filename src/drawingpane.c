@@ -67,8 +67,8 @@ static void move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **fi
 static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static GList *get_hyperbole(DrawingPane *pane);
 static void draw_net(cairo_t* cr, DrawingPane *pane);
-static void draw_point(cairo_t *cr, Point *point, Color color);
-static void draw_key_points(cairo_t *cr, GList *list, Color color);
+static void draw_point(cairo_t *cr, Point *point, Color color, DrawingPane *pane);
+static void draw_key_points(cairo_t *cr, GList *list, Color color, DrawingPane *pane);
 static void get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point);
 static gboolean is_point_boundary(Point *point, Spline *spline);
 static void drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data);
@@ -272,8 +272,7 @@ draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane)
 {
 	cairo_set_source_rgba(cr, 0, 0, 0, pixel->alpha);
 	cairo_rectangle(cr,
-			//pixel->x + pane->priv->width / 2, pixel->y + pane->priv->height / 2,
-			pixel->x, pixel->y,
+			pixel->x + pane->priv->width / 2, - pixel->y + pane->priv->height / 2,
 			1, 1);
 	cairo_fill(cr);
 }
@@ -309,9 +308,11 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
     GraphicsEditorDrawingModeType drawing_mode;
     Spline *spline;
     GList *list, *figure_list, *figure;
+	DrawingPane *pane;
 
-    priv = DRAWING_PANE(data)->priv;
-    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
+	pane = DRAWING_PANE(data);
+	priv = pane->priv;
+    drawing_mode = get_drawing_mode(pane);
 
     cairo_scale(cr, priv->cell_size, priv->cell_size);
 
@@ -325,7 +326,7 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 	figure_list = priv->figure_list;
 	while (figure_list != NULL) {
 		figure = figure_list->data;
-		draw_figure(cr, figure, DRAWING_PANE(data));
+		draw_figure(cr, figure, pane);
 		figure_list = g_list_next(figure_list);
 	}
 
@@ -338,47 +339,47 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 			spline->pixels = get_b_spline_figure(spline->points, STEP);
 			spline->need_refresh_pixels = FALSE;
 		}
-		draw_figure(cr, spline->pixels,  DRAWING_PANE(data));
+		draw_figure(cr, spline->pixels, pane);
 		figure_list = g_list_next(figure_list);
 	}
 
     //Drawing figures which are creating
 
     if (priv->line_start_point != NULL) {
-		draw_point(cr, priv->line_start_point, green_color);
+		draw_point(cr, priv->line_start_point, green_color, pane);
     }
 
     if (priv->b_spline_pixels)
-        draw_figure(cr, priv->b_spline_pixels, DRAWING_PANE(data));
+        draw_figure(cr, priv->b_spline_pixels, pane);
 
     //Drawing key points
 
     if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
-        draw_key_points(cr, priv->b_spline_points, green_color);
+        draw_key_points(cr, priv->b_spline_points, green_color, pane);
 
         list = priv->b_spliens;
         while (list != NULL) {
             spline = list->data;
-            draw_key_points(cr, spline->points, blue_color);
+            draw_key_points(cr, spline->points, blue_color, pane);
             list = g_list_next(list);
         }
     }
 
     if (priv->old_point != NULL) {
-        draw_point(cr, priv->old_point, red_color);
+        draw_point(cr, priv->old_point, red_color, pane);
     }
 
     //Finish drawing figures
 	cairo_scale(cr, 1.0 / priv->cell_size, 1.0 / priv->cell_size);
 
     //Drawing net;
-	draw_net(cr, DRAWING_PANE(data));
+	draw_net(cr, pane);
 
 	return TRUE;
 }
 
 static void
-draw_key_points(cairo_t *cr, GList *list, Color color)
+draw_key_points(cairo_t *cr, GList *list, Color color, DrawingPane *pane)
 {
     gint i, n;
     Point *point;
@@ -397,9 +398,9 @@ draw_key_points(cairo_t *cr, GList *list, Color color)
 
 		point = list->data;
         if (i == 1 || i == n) {
-            draw_point(cr, point, boundary_color);
+            draw_point(cr, point, boundary_color, pane);
         } else {
-            draw_point(cr, point, color);
+            draw_point(cr, point, color, pane);
         }
 
         list = g_list_next(list);
@@ -407,11 +408,14 @@ draw_key_points(cairo_t *cr, GList *list, Color color)
 }
 
 static void
-draw_point(cairo_t *cr, Point *point, Color color)
+draw_point(cairo_t *cr, Point *point, Color color, DrawingPane *pane)
 {
     cairo_set_line_width(cr, 1);
     cairo_set_source_rgb(cr, color.r, color.g, color.b);
-    cairo_arc(cr, point->x, point->y, 5, 0, 2 * M_PI);
+    cairo_arc(cr,
+			point->x + pane->priv->width / 2, - point->y + pane->priv->height / 2,
+			5, 0,
+			2 * M_PI);
     cairo_fill_preserve(cr);
 
     cairo_set_source_rgb(cr, color.r * 0.5, color.g * 0.5, color.b * 0.5);
@@ -482,12 +486,13 @@ drawing_area_button_release_event_handler(GtkWidget *widget, GdkEventButton *eve
     priv = DRAWING_PANE(data)->priv;
     drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
+	x = floor(event->x / priv->cell_size);
+	y = floor(event->y / priv->cell_size);
+
+	translate(DRAWING_PANE(data), &x, &y);
+
     if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
         if (priv->move_spline != NULL) {
-            x = floor(event->x / priv->cell_size);
-            y = floor(event->y / priv->cell_size);
-
-            translate(DRAWING_PANE(data), &x, &y);
 
             Point *near_point = NULL;
             Spline *near_spline = NULL;
@@ -578,15 +583,18 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
     GList *spline_list, *point_list;
 	gint x, y;
 	GraphicsEditorDrawingModeType drawing_mode;
-    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
 	priv = DRAWING_PANE(data)->priv;
+    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
+
+	x = floor(event->x / priv->cell_size);
+	y = floor(event->y / priv->cell_size);
+	translate(DRAWING_PANE(data), &x, &y);
+
     if (is_line_drawing_mode(drawing_mode)) {
         switch(event->button) {
         case 1:
-            x = floor(event->x / priv->cell_size);
-            y = floor(event->y / priv->cell_size);
-            translate(DRAWING_PANE(data), &x, &y);
+
             if (priv->line_start_point == NULL) {
                 priv->line_start_point = g_malloc(sizeof(Point));
 				priv->line_start_point->x = x;
@@ -616,11 +624,6 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
     } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
         switch (event->button) {
         case 1:
-            x = floor(event->x / priv->cell_size);
-            y = floor(event->y / priv->cell_size);
-
-            translate(DRAWING_PANE(data), &x, &y);
-
             if (event->state & GDK_SHIFT_MASK == GDK_SHIFT_MASK) {
                 get_nearest_point_to(x, y, DRAWING_PANE(data), &spline, &point);
                 if (point != NULL) {
@@ -648,9 +651,8 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
 
                     priv->b_spline_points = g_list_append(priv->b_spline_points, point);
 
-                    //translate(DRAWING_PANE(data), &x, &y);
-
                     clear_list(&priv->b_spline_pixels);
+
                     priv->b_spline_pixels = get_b_spline_figure(priv->b_spline_points, STEP);
                 }
             }
@@ -810,17 +812,16 @@ get_hyperbole(DrawingPane *pane)
 
 	if (result == GTK_RESPONSE_OK) {
 		figure = get_hyperbole_figure(a, b,
-				0, 0,
+				- pane->priv->width / 2, - pane->priv->height / 2,
 				pane->priv->width, pane->priv->height);
 	}
 
 	return figure;
 }
 
-//TODO
 static void
 translate(DrawingPane *pane, gint *x, gint *y) {
-	//*x -= pane->priv->width / 2;
-	//*y -= pane->priv->height / 2;
-	//*y = -1 * *y;
+	*x -= pane->priv->width / 2;
+	*y -= pane->priv->height / 2;
+	*y = -1 * *y;
 }
