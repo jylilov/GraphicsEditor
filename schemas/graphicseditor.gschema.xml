@@ -8,6 +8,9 @@
 		<choice value='bresenham-line'/>
 		<choice value='wu-line'/>
 		<choice value='hyperbole'/>
+		<choice value='ellipse'/>
+		<choice value='hermit'/>
+		<choice value='bezier'/>
 		<choice value='b-spline'/>
       </choices>
     </key>

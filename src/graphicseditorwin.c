@@ -135,10 +135,25 @@ graphicseditor_window_set_toolpalette(GraphicsEditorWindow *win)
 	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::hyperbole");
 	gtk_tool_item_group_insert(group, item, i++);
 
+	item = gtk_toggle_tool_button_new();
+	g_object_set(item, "label", "Ellipse", NULL);
+	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::ellipse");
+	gtk_tool_item_group_insert(group, item, i++);
+
 	gtk_container_add(GTK_CONTAINER(win->priv->tool_palette), GTK_WIDGET(group));
 
 	group = GTK_TOOL_ITEM_GROUP(gtk_tool_item_group_new("Interpolation and antialiasing"));
 	i = 0;
+
+	item = gtk_toggle_tool_button_new();
+	g_object_set(item, "label", "Hermitian form", NULL);
+	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::hermit");
+	gtk_tool_item_group_insert(group, item, i++);
+
+	item = gtk_toggle_tool_button_new();
+	g_object_set(item, "label", "Bezier form", NULL);
+	gtk_actionable_set_detailed_action_name(GTK_ACTIONABLE(item), "app.drawing-mode::bezier");
+	gtk_tool_item_group_insert(group, item, i++);
 
 	item = gtk_toggle_tool_button_new();
 	g_object_set(item, "label", "B-spline", NULL);

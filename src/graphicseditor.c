@@ -147,8 +147,20 @@ graphicseditor_set_accelerator(GraphicsEditor *app)
 	gtk_application_add_accelerator (GTK_APPLICATION (app), "4", "app.drawing-mode", va);
 	g_variant_unref(va);
 
-	va = g_variant_new_string("b-spline");
+	va = g_variant_new_string("ellipse");
 	gtk_application_add_accelerator (GTK_APPLICATION (app), "5", "app.drawing-mode", va);
+	g_variant_unref(va);
+
+	va = g_variant_new_string("hermit");
+	gtk_application_add_accelerator (GTK_APPLICATION (app), "6", "app.drawing-mode", va);
+	g_variant_unref(va);
+
+	va = g_variant_new_string("bezier");
+	gtk_application_add_accelerator (GTK_APPLICATION (app), "7", "app.drawing-mode", va);
+	g_variant_unref(va);
+
+	va = g_variant_new_string("b-spline");
+	gtk_application_add_accelerator (GTK_APPLICATION (app), "8", "app.drawing-mode", va);
 	g_variant_unref(va);
 
 }
@@ -230,10 +242,13 @@ graphicseditor_set_app_menu(GraphicsEditor *app)
 
 	section = g_menu_new();
 	g_menu_append(section, "Hyperbole", "app.drawing-mode::hyperbole");
+	g_menu_append(section, "Ellipse", "app.drawing-mode::ellipse");
 	g_menu_append_section(submenu, NULL, G_MENU_MODEL(section));
 	g_object_unref(section);
 
 	section = g_menu_new();
+	g_menu_append(section, "Hermitian form", "app.drawing-mode::hermit");
+	g_menu_append(section, "Bezier form", "app.drawing-mode::bezier");
 	g_menu_append(section, "B-spline", "app.drawing-mode::b-spline");
 	g_menu_append_section(submenu, NULL, G_MENU_MODEL(section));
 	g_object_unref(section);
