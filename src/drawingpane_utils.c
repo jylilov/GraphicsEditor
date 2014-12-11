@@ -135,73 +135,59 @@ get_bresenham_line_figure(gint x1, gint y1, gint x2, gint y2) {
 GList *
 get_wu_line_figure(gint x1, gint y1, gint x2, gint y2) {
 	GList *figure;
-	gint dx, dy;
-	gdouble e;
-	gdouble alpha, temp;
-	gboolean is_swaped = FALSE;
+	gint dx, dy, steps;
+	gdouble e, de;
+	gint x, y;
+	int i;
+
+	gint d_second_y;
+	gint d_second_x;
+
+	gint step_inc_x;
+	gint step_inc_y;
 
 	figure = NULL;
-	dx = x2 - x1;
-	dy = y2 - y1;
+	dx = abs(x2 - x1);
+	dy = abs(y2 - y1);
 
-	if (dx == 0 || dy == 0 || abs(dx) == abs(dy)) {
+	if (dx == 0 || dy == 0 || dx == dy) {
 		return get_bresenham_line_figure(x1, y1, x2, y2);
 	}
 
-	if (abs(dx) > abs(dy)) {
-		if (x1 > x2) {
-			is_swaped = TRUE;
-			swap(&x1, &x2);
-			swap(&y1, &y2);
-		}
-
-		e = (gdouble) dy / dx;
-
-		gint x;
-		gdouble y;
-
-		add_pixel(&figure, x1, y1);
-		for (x = x1, y = y1 - 0.5 * sign(e); x <= x2; ++x) {
-			alpha = modf(y, &temp);
-
-			if (sign(e) < 0) alpha = 1 - alpha;
-
-			add_pixel_with_alpha(&figure, x, floor(y), 1 - alpha);
-			add_pixel_with_alpha(&figure, x, floor(y) + sign(e), alpha);
-
-			y += e;
-		}
-		add_pixel(&figure, x2, y2);
+	if (dx > dy) {
+		step_inc_x = x1 > x2 ? -1 : 1;
+		step_inc_y = 0;
+		d_second_x = 0;
+		d_second_y = y1 > y2 ? -1 : 1;
+		steps = dx;
+		de = (gdouble) dy / dx;
 	} else {
-		if (y1 > y2) {
-			is_swaped = TRUE;
-			swap(&x1, &x2);
-			swap(&y1, &y2);
-		}
-
-		e = (gdouble)dx / dy;
-
-		gint y;
-		gdouble x;
-
-		add_pixel(&figure, x1, y1);
-
-		for (x = x1 - 0.5 * sign(e), y = y1; y <= y2; ++y) {
-			alpha = modf(x, &temp);
-
-			if (sign(e) < 0) alpha = 1 - alpha;
-
-			add_pixel_with_alpha(&figure, floor(x), y, 1 - alpha);
-			add_pixel_with_alpha(&figure, floor(x) + sign(e), y, alpha);
-
-			x += e;
-		}
-
-		add_pixel(&figure, x2, y2);
+		step_inc_x = 0;
+		step_inc_y = y1 > y2 ? -1 : 1;
+		d_second_x = x1 > x2 ? -1 : 1;
+		d_second_y = 0;
+		steps = dy;
+		de = (gdouble) dx / dy;
 	}
 
-	if (is_swaped == TRUE) {
-		figure = g_list_reverse(figure);
+	e = 0;
+
+	x = x1; y = y1;
+
+	for (i = 0; i <= steps; ++i) {
+		add_pixel_with_alpha(&figure, x, y, 1 - e);
+		add_pixel_with_alpha(&figure, x + d_second_x, y + d_second_y, e);
+
+		e += de;
+
+		if (e > 1) {
+			x += d_second_x;
+			y += d_second_y;
+			e -= 1;
+		}
+
+		x += step_inc_x;
+		y += step_inc_y;
 	}
 
 	return figure;
