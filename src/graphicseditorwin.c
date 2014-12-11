@@ -1,3 +1,4 @@
+#include <glib-unix.h>
 #include "graphicseditorwin.h"
 #include "graphicseditor_enum_types.h"
 #include "graphicseditor_utils.h"
@@ -9,6 +10,7 @@ struct _GraphicsEditorWindowPrivate
 	GtkToolPalette *tool_palette;
 	GtkFrame *working_area;
 	GraphicsEditorDrawingModeType drawing_mode;
+	GtkLabel *statusbar;
 };
 
 enum
@@ -21,6 +23,8 @@ static void graphicseditor_window_finalize(GObject *object);
 static void graphicseditor_window_set_property (GObject *object, guint property_id, const GValue *value, GParamSpec *pspec);
 static void graphicseditor_window_get_property (GObject *object, guint property_id, GValue *value, GParamSpec *pspec);
 static void graphicseditor_window_set_toolpalette(GraphicsEditorWindow *win);
+static void graphicseditor_window_cursor_changed(GObject *object, GParamSpec *spec, gpointer user_data);
+
 
 G_DEFINE_TYPE_WITH_PRIVATE(GraphicsEditorWindow, graphicseditor_window, GTK_TYPE_APPLICATION_WINDOW);
 
@@ -57,6 +61,7 @@ graphicseditor_window_class_init (GraphicsEditorWindowClass *class)
 	gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class), "/by/jylilov/graphicseditor/window.xml");
 	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), GraphicsEditorWindow, tool_palette);
 	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), GraphicsEditorWindow, working_area);
+	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), GraphicsEditorWindow, statusbar);
 }
 
 static void
@@ -163,6 +168,16 @@ graphicseditor_window_constructed(GObject *object)
 	priv->drawing_area = drawing_pane_new(win);
 	gtk_container_add(GTK_CONTAINER(priv->working_area), GTK_WIDGET(priv->drawing_area));
 
+	g_signal_connect(priv->drawing_area,
+			"notify::cursor-x",
+			G_CALLBACK(graphicseditor_window_cursor_changed),
+			win);
+
+	g_signal_connect(priv->drawing_area,
+			"notify::cursor-y",
+			G_CALLBACK(graphicseditor_window_cursor_changed),
+			win);
+
 	gtk_widget_show_all(GTK_WIDGET(priv->drawing_area));
 }
 
@@ -175,6 +190,24 @@ graphicseditor_window_finalize(GObject *object)
 	if (G_OBJECT_CLASS (graphicseditor_window_parent_class)->finalize != NULL)
 		G_OBJECT_CLASS (graphicseditor_window_parent_class)->finalize(object);
 }
+
+static void graphicseditor_window_cursor_changed(GObject *object, GParamSpec *spec, gpointer user_data)
+{
+	GraphicsEditorWindowPrivate *priv;
+
+	priv = GRAPHICSEDITOR_WINDOW(user_data)->priv;
+
+	gint x, y;
+
+	g_object_get(priv->drawing_area,
+			"cursor-x", &x,
+			"cursor-y", &y,
+			NULL
+	);
+
+	gtk_label_set_label(GTK_LABEL(priv->statusbar), g_strdup_printf("Coordinates: %d, %d", x, y));
+}
+
 
 GraphicsEditorWindow *
 graphicseditor_window_new (GraphicsEditor *app)

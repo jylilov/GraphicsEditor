@@ -23,8 +23,9 @@
 					</object>
 				</child>
 				<child>
-					<object class="GtkStatusbar" id="statusbar">
+					<object class="GtkLabel" id="statusbar">
 						<property name="visible">true</property>
+						<property name="halign">start</property>
 					</object>
 					<packing>
 						<property name="expand">false</property>

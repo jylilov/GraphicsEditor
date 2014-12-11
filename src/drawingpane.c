@@ -3,6 +3,7 @@
 #include "graphicseditor_utils.h"
 
 #include <math.h>
+#include <ftlist.h>
 
 #define STEP 0.005
 
@@ -22,6 +23,8 @@ struct _Spline
 struct _DrawingPanePrivate
 {
 	GraphicsEditorWindow *window;
+
+	gint cur_x, cur_y;
 
 	gint cell_size;
 	gint width, height;
@@ -44,10 +47,16 @@ struct _DrawingPanePrivate
     Spline *move_spline;
 };
 
+enum {
+	PROP_CUR_X = 1, PROP_CUR_Y
+};
+
 static Color red_color = {1, 0, 0};
 static Color green_color = {0, 1, 0};
 static Color blue_color = {0, 0, 1};
 
+static void	drawing_pane_get_property (GObject *object, guint property_id, GValue *value, GParamSpec *pspec);
+static void drawing_pane_set_property (GObject *object, guint property_id, const GValue *value, GParamSpec *pspec);
 static void drawing_pane_constructed(GObject *obj);
 static void drawing_pane_finalize(GObject *obj);
 static void drawing_pane_set_handlers(DrawingPane *pane);
@@ -140,6 +149,9 @@ drawing_pane_init (DrawingPane *pane)
     pane->priv->b_spliens = NULL;
     pane->priv->move_spline = NULL;
     pane->priv->old_point = NULL;
+	pane->priv->line_start_point = NULL;
+	pane->priv->cur_x = 0;
+	pane->priv->cur_y = 0;
 }
 
 static void
@@ -150,12 +162,74 @@ drawing_pane_class_init (DrawingPaneClass *class)
 
 	object_class->constructed = drawing_pane_constructed;
 	object_class->finalize = drawing_pane_finalize;
+	object_class->set_property = drawing_pane_set_property;
+	object_class->get_property = drawing_pane_get_property;
+
+	g_object_class_install_property(object_class,
+			PROP_CUR_X,
+			g_param_spec_int(
+					"cursor-x",
+					"Cursor x",
+					"x coordinate of cursor",
+					G_MININT, G_MAXINT, 0,
+					G_PARAM_READWRITE));
+
+	g_object_class_install_property(object_class,
+			PROP_CUR_Y,
+			g_param_spec_int(
+					"cursor-y",
+					"Cursor y",
+					"y coordinate of cursor",
+					G_MININT, G_MAXINT, 0,
+					G_PARAM_READWRITE));
 
 	gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class),
 			"/by/jylilov/graphicseditor/drawing_pane.xml");
 
 	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), DrawingPane, drawing_area);
 	gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), DrawingPane, scrolled_window);
+}
+
+static void
+drawing_pane_get_property (GObject *object, guint property_id, GValue *value, GParamSpec *pspec)
+{
+	DrawingPanePrivate *priv;
+
+	g_return_if_fail(DRAWING_PANE(object));
+	priv = (DRAWING_PANE(object))->priv;
+
+	switch (property_id) {
+		case PROP_CUR_X:
+			g_value_set_int(value, priv->cur_x);
+			break;
+		case PROP_CUR_Y:
+			g_value_set_int(value, priv->cur_y);
+			break;
+		default:
+			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+			break;
+	}
+}
+
+static void
+drawing_pane_set_property (GObject *object, guint property_id, const GValue *value, GParamSpec *pspec)
+{
+	DrawingPanePrivate *priv;
+
+	g_return_if_fail(DRAWING_PANE(object));
+	priv = (DRAWING_PANE(object))->priv;
+
+	switch (property_id) {
+		case PROP_CUR_X:
+			priv->cur_x = g_value_get_int(value);
+			break;
+		case PROP_CUR_Y:
+			priv->cur_y = g_value_get_int(value);
+			break;
+		default:
+			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+			break;
+	}
 }
 
 static void
@@ -314,9 +388,8 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 	priv = pane->priv;
     drawing_mode = get_drawing_mode(pane);
 
+	cairo_save(cr);
     cairo_scale(cr, priv->cell_size, priv->cell_size);
-
-    //Drawing static surface
 
 	cairo_set_source_rgb (cr, 1, 1, 1);
 	cairo_paint (cr);
@@ -345,34 +418,35 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
     //Drawing figures which are creating
 
-    if (priv->line_start_point != NULL) {
-		draw_point(cr, priv->line_start_point, green_color, pane);
-    }
-
     if (priv->b_spline_pixels)
         draw_figure(cr, priv->b_spline_pixels, pane);
 
     //Drawing key points
 
-    if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
-        draw_key_points(cr, priv->b_spline_points, green_color, pane);
-
-        list = priv->b_spliens;
-        while (list != NULL) {
-            spline = list->data;
-            draw_key_points(cr, spline->points, blue_color, pane);
-            list = g_list_next(list);
-        }
-    }
-
-    if (priv->old_point != NULL) {
-        draw_point(cr, priv->old_point, red_color, pane);
-    }
-
     //Finish drawing figures
-	cairo_scale(cr, 1.0 / priv->cell_size, 1.0 / priv->cell_size);
+	cairo_restore(cr);
 
-    //Drawing net;
+	if (priv->line_start_point != NULL) {
+		draw_point(cr, priv->line_start_point, green_color, pane);
+	}
+
+	if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+		draw_key_points(cr, priv->b_spline_points, green_color, pane);
+
+		list = priv->b_spliens;
+		while (list != NULL) {
+			spline = list->data;
+			draw_key_points(cr, spline->points, blue_color, pane);
+			list = g_list_next(list);
+		}
+	}
+
+	if (priv->old_point != NULL) {
+		draw_point(cr, priv->old_point, red_color, pane);
+	}
+
+
+	//Drawing net;
 	draw_net(cr, pane);
 
 	//Drawing coordinate axis
@@ -413,11 +487,18 @@ draw_key_points(cairo_t *cr, GList *list, Color color, DrawingPane *pane)
 static void
 draw_point(cairo_t *cr, Point *point, Color color, DrawingPane *pane)
 {
-    cairo_set_line_width(cr, 1);
+
+	gint x, y, size;
+
+	x = round((point->x + pane->priv->width / 2 + 0.5) * pane->priv->cell_size);
+	y = round((- point->y + pane->priv->height / 2 + 0.5) * pane->priv->cell_size);
+	size = MAX(5, pane->priv->cell_size);
+
+    cairo_set_line_width(cr, size / 5);
     cairo_set_source_rgb(cr, color.r, color.g, color.b);
     cairo_arc(cr,
-			point->x + pane->priv->width / 2, - point->y + pane->priv->height / 2,
-			5, 0,
+			x, y,
+			size, 0,
 			2 * M_PI);
     cairo_fill_preserve(cr);
 
@@ -724,7 +805,7 @@ draw_coordinate_axis(cairo_t *cr, DrawingPane *pane) {
 
 	gint width, height, cell_size, line_width;
 
-	gtk_widget_get_size_request(pane->priv->drawing_area, &width, &height);
+	gtk_widget_get_size_request(GTK_WIDGET(pane->priv->drawing_area), &width, &height);
 	cell_size = pane->priv->cell_size;
 	line_width = cell_size / 3 + 1;
 
@@ -768,6 +849,21 @@ static void draw_net(cairo_t* cr, DrawingPane *pane) {
 gboolean
 drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data)
 {
+	DrawingPanePrivate *priv;
+	gint x, y;
+
+	priv = DRAWING_PANE(data)->priv;
+
+	x = floor(event->x / priv->cell_size);
+	y = floor(event->y / priv->cell_size);
+	translate(DRAWING_PANE(data), &x, &y);
+
+	g_object_set(data,
+			"cursor-x", x,
+			"cursor-y", y,
+			NULL
+	);
+
 	return FALSE;
 }
 
