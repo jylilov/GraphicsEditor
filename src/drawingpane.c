@@ -28,7 +28,6 @@ struct _DrawingPanePrivate
 	GList *figure_list;
 	Point *line_start_point;
 
-	cairo_surface_t *surface;
 	GtkDrawingArea *drawing_area;
 	GtkScrolledWindow *scrolled_window;
 
@@ -62,8 +61,6 @@ static void draw_pixel(cairo_t *cr, Pixel *pixel, DrawingPane *pane);
 static void draw_figure(cairo_t *cr, GList *figure, DrawingPane *pane);
 static void translate(DrawingPane *pane, gint *x, gint *y);
 static void clear_list(GList **figure);
-static void init_surface(DrawingPane *pane);
-static void refresh_surface(DrawingPane *pane);
 static GraphicsEditorDrawingModeType get_drawing_mode(DrawingPane *pane);
 static gboolean is_line_drawing_mode(GraphicsEditorDrawingModeType mode);
 static void move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x2, gint y2);
@@ -233,7 +230,6 @@ drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data) {
 	clear_list(&priv->b_spline_pixels);
 	clear_list(&priv->b_spline_points);
 
-	refresh_surface(DRAWING_PANE(data));
 	gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
 }
 
@@ -307,62 +303,12 @@ is_line_drawing_mode(GraphicsEditorDrawingModeType mode) {
 			mode == GRAPHICSEDITOR_DRAWING_MODE_WU_LINE);
 }
 
-static void
-init_surface(DrawingPane *pane) {
-	if (pane->priv->surface == NULL) {
-		pane->priv->surface = gdk_window_create_similar_surface (
-				gtk_widget_get_window (GTK_WIDGET(pane->priv->drawing_area)),
-				CAIRO_CONTENT_COLOR,
-				pane->priv->width,
-				pane->priv->height);
-		refresh_surface(pane);
-	}
-}
-
-static void
-refresh_surface(DrawingPane *pane) {
-	DrawingPanePrivate *priv;
-	cairo_t *cr;
-	GList *figure, *figure_list;
-    Spline *spline;
-
-	priv = DRAWING_PANE(pane)->priv;
-	cr = cairo_create (priv->surface);
-
-	cairo_set_source_rgb (cr, 1, 1, 1);
-	cairo_paint (cr);
-
-    // Adding on surface lines(1st and 2nd order)
-
-    figure_list = priv->figure_list;
-	while (figure_list != NULL) {
-		figure = figure_list->data;
-		draw_figure(cr, figure, pane);
-		figure_list = g_list_next(figure_list);
-	}
-
-    // Adding on surface splines
-
-    figure_list = priv->b_spliens;
-    while (figure_list != NULL) {
-        spline = figure_list->data;
-        if (spline->need_refresh_pixels) {
-            spline->pixels = get_b_spline_figure(spline->points, STEP);
-            spline->need_refresh_pixels = FALSE;
-        }
-        draw_figure(cr, spline->pixels, pane);
-        figure_list = g_list_next(figure_list);
-    }
-
-	cairo_destroy (cr);
-}
-
 gboolean
 drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
     DrawingPanePrivate *priv;
     GraphicsEditorDrawingModeType drawing_mode;
     Spline *spline;
-    GList *list;
+    GList *list, *figure_list, *figure;
 
     priv = DRAWING_PANE(data)->priv;
     drawing_mode = get_drawing_mode(DRAWING_PANE(data));
@@ -371,8 +317,30 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
     //Drawing static surface
 
-    cairo_set_source_surface(cr, priv->surface, 0, 0);
-    cairo_paint(cr);
+	cairo_set_source_rgb (cr, 1, 1, 1);
+	cairo_paint (cr);
+
+	// Adding on surface lines(1st and 2nd order)
+
+	figure_list = priv->figure_list;
+	while (figure_list != NULL) {
+		figure = figure_list->data;
+		draw_figure(cr, figure, DRAWING_PANE(data));
+		figure_list = g_list_next(figure_list);
+	}
+
+	// Adding on surface splines
+
+	figure_list = priv->b_spliens;
+	while (figure_list != NULL) {
+		spline = figure_list->data;
+		if (spline->need_refresh_pixels) {
+			spline->pixels = get_b_spline_figure(spline->points, STEP);
+			spline->need_refresh_pixels = FALSE;
+		}
+		draw_figure(cr, spline->pixels,  DRAWING_PANE(data));
+		figure_list = g_list_next(figure_list);
+	}
 
     //Drawing figures which are creating
 
@@ -493,8 +461,6 @@ drawing_area_configure_event_handler (GtkWidget *widget, GdkEventConfigure *even
 
 	priv->cell_size = current_width / priv->width;
 
-	init_surface(DRAWING_PANE(data));
-
 	gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
 
 	return TRUE;
@@ -567,7 +533,6 @@ drawing_area_button_release_event_handler(GtkWidget *widget, GdkEventButton *eve
             }
         }
 
-        refresh_surface(DRAWING_PANE(data));
         gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
 
     }
@@ -635,8 +600,6 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
 
                 g_free(priv->line_start_point);
 				priv->line_start_point = NULL;
-
-                refresh_surface(DRAWING_PANE(data));
             }
             break;
         case 3:
@@ -649,7 +612,6 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
         GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
         if (hyperbole) {
             priv->figure_list = g_list_append(priv->figure_list, hyperbole);
-            refresh_surface(DRAWING_PANE(data));
         }
     } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
         switch (event->button) {
@@ -672,7 +634,6 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
                         priv->b_spliens = g_list_remove(priv->b_spliens, spline);
                         g_free(spline);
                     }
-                    refresh_surface(DRAWING_PANE(data));
                 }
             } else {
 
@@ -706,8 +667,6 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
                 priv->b_spliens = g_list_append(priv->b_spliens, spline);
                 priv->b_spline_pixels = NULL;
                 priv->b_spline_points = NULL;
-
-                refresh_surface(DRAWING_PANE(data));
             }
             break;
         }
