@@ -26,7 +26,7 @@ struct _DrawingPanePrivate
 	gint cell_size;
 	gint width, height;
 	GList *figure_list;
-	GList *editing_line;
+	Point *line_start_point;
 
 	cairo_surface_t *surface;
 	GtkDrawingArea *drawing_area;
@@ -220,13 +220,16 @@ drawing_pane_set_handlers(DrawingPane *pane)
 }
 
 static void
-drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data)
-{
+drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data) {
 	DrawingPanePrivate *priv;
 
 	priv = DRAWING_PANE(data)->priv;
 
-	clear_list(&priv->editing_line);
+	if (priv->line_start_point) {
+		g_free(priv->line_start_point);
+		priv->line_start_point = NULL;
+	}
+
 	clear_list(&priv->b_spline_pixels);
 	clear_list(&priv->b_spline_points);
 
@@ -373,8 +376,8 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
     //Drawing figures which are creating
 
-    if (priv->editing_line != NULL) {
-        draw_figure(cr, priv->editing_line, DRAWING_PANE(data));
+    if (priv->line_start_point != NULL) {
+		draw_point(cr, priv->line_start_point, green_color);
     }
 
     if (priv->b_spline_pixels)
@@ -619,19 +622,26 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
             x = floor(event->x / priv->cell_size);
             y = floor(event->y / priv->cell_size);
             translate(DRAWING_PANE(data), &x, &y);
-            if (priv->editing_line == NULL) {
-                priv->editing_line = get_line_figure(drawing_mode, x, y, x, y);
+            if (priv->line_start_point == NULL) {
+                priv->line_start_point = g_malloc(sizeof(Point));
+				priv->line_start_point->x = x;
+				priv->line_start_point->y = y;
             } else {
-                move_line_end(drawing_mode, &priv->editing_line, x, y);
+				GList *line_list;
 
-                priv->figure_list = g_list_append(priv->figure_list, priv->editing_line);
-                priv->editing_line = NULL;
+				line_list = get_line_figure(drawing_mode, priv->line_start_point->x, priv->line_start_point->y, x, y);
+
+                priv->figure_list = g_list_append(priv->figure_list, line_list);
+
+                g_free(priv->line_start_point);
+				priv->line_start_point = NULL;
 
                 refresh_surface(DRAWING_PANE(data));
             }
             break;
         case 3:
-            clear_list(&priv->editing_line);
+			g_free(priv->line_start_point);
+			priv->line_start_point = NULL;
             break;
         }
 
@@ -789,26 +799,6 @@ static void draw_net(cairo_t* cr, DrawingPane *pane) {
 gboolean
 drawing_area_motion_notify_event_handler (GtkWidget *widget, GdkEventMotion  *event, gpointer data)
 {
-	DrawingPanePrivate *priv;
-	gint x, y;
-	GraphicsEditorDrawingModeType drawing_mode;
-
-	priv = DRAWING_PANE(data)->priv;
-    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
-
-    if (is_line_drawing_mode(drawing_mode)) {
-        if (priv->editing_line != NULL) {
-            x = floor(event->x / priv->cell_size);
-            y = floor(event->y / priv->cell_size);
-
-            translate(DRAWING_PANE(data), &x, &y);
-
-            move_line_end(drawing_mode, &priv->editing_line, x, y);
-
-            gtk_widget_queue_draw(widget);
-        }
-    }
-
 	return FALSE;
 }
 
