@@ -63,10 +63,10 @@ static void translate(DrawingPane *pane, gint *x, gint *y);
 static void clear_list(GList **figure);
 static GraphicsEditorDrawingModeType get_drawing_mode(DrawingPane *pane);
 static gboolean is_line_drawing_mode(GraphicsEditorDrawingModeType mode);
-static void move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x2, gint y2);
 static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static GList *get_hyperbole(DrawingPane *pane);
 static void draw_net(cairo_t* cr, DrawingPane *pane);
+static void draw_coordinate_axis(cairo_t *cr, DrawingPane *pane);
 static void draw_point(cairo_t *cr, Point *point, Color color, DrawingPane *pane);
 static void draw_key_points(cairo_t *cr, GList *list, Color color, DrawingPane *pane);
 static void get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point);
@@ -374,6 +374,9 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
     //Drawing net;
 	draw_net(cr, pane);
+
+	//Drawing coordinate axis
+	draw_coordinate_axis(cr, pane);
 
 	return TRUE;
 }
@@ -716,19 +719,24 @@ get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gi
 }
 
 static void
-move_line_end(GraphicsEditorDrawingModeType drawing_mode, GList **figure, gint x2, gint y2)
-{
-	Pixel *start_pixel;
-	gint x1, y1;
+draw_coordinate_axis(cairo_t *cr, DrawingPane *pane) {
+	cairo_set_source_rgb(cr, 0.75, 0.75, 0.25);
 
-	start_pixel = (*figure)->data;
+	gint width, height, cell_size, line_width;
 
-	x1 = start_pixel->x;
-	y1 = start_pixel->y;
+	gtk_widget_get_size_request(pane->priv->drawing_area, &width, &height);
+	cell_size = pane->priv->cell_size;
+	line_width = cell_size / 3 + 1;
 
-    clear_list(figure);
+	cairo_set_line_width(cr, line_width);
 
-	*figure = get_line_figure(drawing_mode, x1, y1, x2, y2);
+	cairo_move_to(cr, 0, height / 2 + cell_size / 2);
+	cairo_line_to(cr, width, height / 2 + cell_size / 2);
+
+	cairo_move_to(cr, width / 2 + cell_size / 2, 0);
+	cairo_line_to(cr, width / 2 + cell_size / 2, height);
+
+	cairo_stroke(cr);
 }
 
 
