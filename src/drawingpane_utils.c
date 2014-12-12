@@ -307,6 +307,97 @@ static mat4 b_spline = {
 		{1, 0, 0, 0}
 };
 
+static mat4 bezier = {
+		{-1, 3, -3, 1},
+		{3, -6, 3, 0},
+		{-3, 3, 0, 0},
+		{1, 0, 0, 0}
+};
+
+static mat4 hermit = {
+		{2, -3, 0, 1},
+		{-2, 3, 0, 0},
+		{1, -2, 1, 0},
+		{1, -1, 0, 0}
+};
+
+
+GList *
+get_bezier_figure(GList *points, gdouble step)
+{
+	GList *figure;
+	gint x, y;
+	gdouble double_x, double_y;
+	vec4 result;
+	gdouble t;
+	Point *point;
+	vec4 array_x, array_y;
+	int i;
+
+	for (i = 0; i < 4; ++i) {
+		point = points->data;
+
+		array_x[i] = point->x;
+		array_y[i] = point->y;
+
+		points = g_list_next(points);
+	}
+
+	figure = NULL;
+
+	for (t = 0; t < 1 + 1e-5; t += step) {
+		vec4 vec_t = {pow(t, 3), pow(t, 2), t, 1};
+
+		multiplication_mat4_vec4(result, bezier, vec_t);
+		multiplication_vec4_vec4(&double_x, array_x, result);
+		multiplication_vec4_vec4(&double_y, array_y, result);
+
+		x = round(double_x);
+		y = round(double_y);
+
+		add_pixel(&figure, x, y);
+	}
+
+	return figure;
+}
+
+GList *get_hermitian_figure(GList *points, gdouble step)
+{
+	GList *figure;
+	gint x, y;
+	gdouble double_x, double_y;
+	vec4 result;
+	gdouble t;
+	Point *point;
+	vec4 array_x, array_y;
+	int i;
+
+	for (i = 0; i < 4; ++i) {
+		point = points->data;
+
+		array_x[i] = point->x;
+		array_y[i] = point->y;
+
+		points = g_list_next(points);
+	}
+
+	figure = NULL;
+
+	for (t = 0; t < 1 + 1e-5; t += step) {
+		vec4 vec_t = {pow(t, 3), pow(t, 2), t, 1};
+
+		multiplication_mat4_vec4(result, hermit, vec_t);
+		multiplication_vec4_vec4(&double_x, array_x, result);
+		multiplication_vec4_vec4(&double_y, array_y, result);
+
+		x = round(double_x);
+		y = round(double_y);
+
+		add_pixel(&figure, x, y);
+	}
+
+	return figure;
+}
 GList *
 get_b_spline_figure(GList *points, gdouble step)
 {

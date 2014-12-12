@@ -5,7 +5,7 @@
 #include <math.h>
 #include <ftlist.h>
 
-#define STEP 0.005
+#define STEP 0.001
 
 typedef struct _Color Color;
 struct _Color {
@@ -28,8 +28,6 @@ struct _DrawingPanePrivate
 
 	gint cell_size;
 	gint width, height;
-	GList *figure_list;
-	Point *line_start_point;
 
 	GtkDrawingArea *drawing_area;
 	GtkScrolledWindow *scrolled_window;
@@ -40,9 +38,13 @@ struct _DrawingPanePrivate
 	gdouble scale_y_fixed;
 	gboolean was_scaled;
 
-	GList *b_spline_points;
-	GList *b_spline_pixels;
+	GList *created_points;
+
+	GList *figure_list; // static figures(1st/2nd order lines)
+	GList *bezier_forms;
+	GList *hermitian_forms;
     GList *b_spliens;
+
     Point *old_point;
     Spline *move_spline;
 };
@@ -79,7 +81,7 @@ static void draw_net(cairo_t* cr, DrawingPane *pane);
 static void draw_coordinate_axis(cairo_t *cr, DrawingPane *pane);
 static void draw_point(cairo_t *cr, Point *point, Color color, DrawingPane *pane);
 static void draw_key_points(cairo_t *cr, GList *list, Color color, DrawingPane *pane);
-static void get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point);
+static void get_nearest_point_to(gint x, gint y, DrawingPane *pane, GList *splines, Spline **out_spline, Point **out_point);
 static gboolean is_point_boundary(Point *point, Spline *spline);
 static void drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data);
 
@@ -144,13 +146,19 @@ drawing_pane_init (DrawingPane *pane)
 	pane->priv->cell_size = 1;
 	pane->priv->height = DRAWING_PANE_DEFAULT_HEIGHT;
 	pane->priv->width = DRAWING_PANE_DEFAULT_WIDTH;
+
 	pane->priv->was_scaled = FALSE;
-	pane->priv->b_spline_pixels = NULL;
-	pane->priv->b_spline_points = NULL;
+
+	pane->priv->created_points = NULL;
+
+	pane->priv->figure_list = NULL;
     pane->priv->b_spliens = NULL;
+	pane->priv->bezier_forms = NULL;
+	pane->priv->hermitian_forms = NULL;
+
     pane->priv->move_spline = NULL;
     pane->priv->old_point = NULL;
-	pane->priv->line_start_point = NULL;
+
 	pane->priv->cur_x = 0;
 	pane->priv->cur_y = 0;
 }
@@ -297,13 +305,9 @@ drawing_mode_changed(GObject *object, GParamSpec *param, gpointer data) {
 
 	priv = DRAWING_PANE(data)->priv;
 
-	if (priv->line_start_point) {
-		g_free(priv->line_start_point);
-		priv->line_start_point = NULL;
-	}
-
-	clear_list(&priv->b_spline_pixels);
-	clear_list(&priv->b_spline_points);
+	clear_list(&priv->created_points);
+	priv->move_spline = NULL;
+	priv->old_point = NULL;
 
 	gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
 }
@@ -417,24 +421,61 @@ drawing_area_draw_handler (GtkWidget *widget, cairo_t *cr, gpointer data) {
 		figure_list = g_list_next(figure_list);
 	}
 
-    //Drawing figures which are creating
+	figure_list = priv->bezier_forms;
+	while (figure_list != NULL) {
+		spline = figure_list->data;
+		if (spline->need_refresh_pixels) {
+			spline->pixels = get_bezier_figure(spline->points, STEP);
+			spline->need_refresh_pixels = FALSE;
+		}
+		draw_figure(cr, spline->pixels, pane);
+		figure_list = g_list_next(figure_list);
+	}
 
-    if (priv->b_spline_pixels)
-        draw_figure(cr, priv->b_spline_pixels, pane);
+	figure_list = priv->hermitian_forms;
+	while (figure_list != NULL) {
+		spline = figure_list->data;
+		if (spline->need_refresh_pixels) {
+			// TODO
+			spline->pixels = get_hermitian_figure(spline->points, STEP);
+			spline->need_refresh_pixels = FALSE;
+		}
+		draw_figure(cr, spline->pixels, pane);
+		figure_list = g_list_next(figure_list);
+	}
 
     //Drawing key points
 
     //Finish drawing figures
 	cairo_restore(cr);
 
-	if (priv->line_start_point != NULL) {
-		draw_point(cr, priv->line_start_point, green_color, pane);
+	if (g_list_length(priv->created_points) == 1) {
+		draw_point(cr, priv->created_points->data, green_color, pane);
 	}
 
-	if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
-		draw_key_points(cr, priv->b_spline_points, green_color, pane);
+	if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_BEZIER) {
+		draw_key_points(cr, priv->created_points, green_color, pane);
+
+		list = priv->bezier_forms;
+		while (list != NULL) {
+			spline = list->data;
+			draw_key_points(cr, spline->points, blue_color, pane);
+			list = g_list_next(list);
+		}
+
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+		draw_key_points(cr, priv->created_points, green_color, pane);
 
 		list = priv->b_spliens;
+		while (list != NULL) {
+			spline = list->data;
+			draw_key_points(cr, spline->points, blue_color, pane);
+			list = g_list_next(list);
+		}
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HERMIT) {
+		draw_key_points(cr, priv->created_points, green_color, pane);
+
+		list = priv->hermitian_forms;
 		while (list != NULL) {
 			spline = list->data;
 			draw_key_points(cr, spline->points, blue_color, pane);
@@ -493,6 +534,7 @@ draw_point(cairo_t *cr, Point *point, Color color, DrawingPane *pane)
 
 	x = round((point->x + pane->priv->width / 2 + 0.5) * pane->priv->cell_size);
 	y = round((- point->y + pane->priv->height / 2 + 0.5) * pane->priv->cell_size);
+
 	size = MAX(5, pane->priv->cell_size);
 
     cairo_set_line_width(cr, size / 5);
@@ -576,14 +618,23 @@ drawing_area_button_release_event_handler(GtkWidget *widget, GdkEventButton *eve
 
 	translate(DRAWING_PANE(data), &x, &y);
 
-    if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+	if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_BEZIER || drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HERMIT) {
+		if (priv->old_point != NULL) {
+			priv->old_point->x = x;
+			priv->old_point->y = y;
+
+			priv->move_spline->need_refresh_pixels = TRUE;
+
+			priv->move_spline = NULL;
+			priv->old_point = NULL;
+		}
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
         if (priv->move_spline != NULL) {
 
             Point *near_point = NULL;
             Spline *near_spline = NULL;
 
-            get_nearest_point_to(x, y, DRAWING_PANE(data), &near_spline, &near_point);
-
+            get_nearest_point_to(event->x, event->y, DRAWING_PANE(data), priv->b_spliens, &near_spline, &near_point);
 
             if (near_point != NULL && priv->old_point != near_point && near_spline != priv->move_spline
                     && is_point_boundary(priv->old_point, priv->move_spline)
@@ -622,10 +673,11 @@ drawing_area_button_release_event_handler(GtkWidget *widget, GdkEventButton *eve
                 priv->old_point = NULL;
             }
         }
+    } else {
+		return FALSE;
+	}
 
-        gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
-
-    }
+	gtk_widget_queue_draw(GTK_WIDGET(priv->drawing_area));
 
     return FALSE;
 }
@@ -633,22 +685,24 @@ drawing_area_button_release_event_handler(GtkWidget *widget, GdkEventButton *eve
 
 // TODO use minimal distance
 static void
-get_nearest_point_to(gint x, gint y, DrawingPane *pane, Spline **out_spline, Point **out_point)
+get_nearest_point_to(gint x, gint y, DrawingPane *pane, GList *splines, Spline **out_spline, Point **out_point)
 {
     GList *spline_list, *point_list;
-    DrawingPanePrivate *priv;
     Spline *spline;
+	gdouble px, py;
     Point *point;
 
-    priv = pane->priv;
-
-    spline_list = priv->b_spliens;
+    spline_list = splines;
     while (spline_list != NULL) {
         spline = spline_list->data;
         point_list = spline->points;
         while (point_list != NULL) {
             point = point_list->data;
-            if (hypot(point->x - x, point->y - y) < 15) {
+
+			px = (point->x + pane->priv->width / 2 + 0.5) * pane->priv->cell_size;
+			py = (- point->y +  pane->priv->height / 2 + 0.5) * pane->priv->cell_size;
+
+            if (hypot(px - x, py - y) < MAX(10, pane->priv->cell_size)) {
                 *out_spline = spline;
                 *out_point = point;
                 return;
@@ -663,45 +717,48 @@ static gboolean
 drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *event, gpointer data)
 {
 	DrawingPanePrivate *priv;
-    Point *point;
-    Spline *spline;
-    GList *spline_list, *point_list;
+	Point *point;
+	Spline *spline;
+	GList *spline_list, *point_list;
 	gint x, y;
 	GraphicsEditorDrawingModeType drawing_mode;
 
 	priv = DRAWING_PANE(data)->priv;
-    drawing_mode = get_drawing_mode(DRAWING_PANE(data));
+	drawing_mode = get_drawing_mode(DRAWING_PANE(data));
 
 	x = floor(event->x / priv->cell_size);
 	y = floor(event->y / priv->cell_size);
 	translate(DRAWING_PANE(data), &x, &y);
 
-    if (is_line_drawing_mode(drawing_mode)) {
-        switch(event->button) {
-        case 1:
+	if (is_line_drawing_mode(drawing_mode)) {
+		switch(event->button) {
+			case 1:
 
-            if (priv->line_start_point == NULL) {
-                priv->line_start_point = g_malloc(sizeof(Point));
-				priv->line_start_point->x = x;
-				priv->line_start_point->y = y;
-            } else {
-				GList *line_list;
+				if (g_list_length(priv->created_points) == 0) {
+					point = g_malloc(sizeof(Point));
 
-				line_list = get_line_figure(drawing_mode, priv->line_start_point->x, priv->line_start_point->y, x, y);
+					point->x = x;
+					point->y = y;
 
-                priv->figure_list = g_list_append(priv->figure_list, line_list);
+					priv->created_points = g_list_append(priv->created_points, point);
+				} else {
+					GList *line_list;
 
-                g_free(priv->line_start_point);
-				priv->line_start_point = NULL;
-            }
-            break;
-        case 3:
-			g_free(priv->line_start_point);
-			priv->line_start_point = NULL;
-            break;
-        }
+					point = priv->created_points->data;
 
-    } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE) {
+					line_list = get_line_figure(drawing_mode, point->x, point->y, x, y);
+
+					priv->figure_list = g_list_append(priv->figure_list, line_list);
+
+					clear_list(&priv->created_points);
+				}
+				break;
+			case 3:
+				clear_list(&priv->created_points);
+				break;
+		}
+
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE) {
 		GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
 		if (hyperbole) {
 			priv->figure_list = g_list_append(priv->figure_list, hyperbole);
@@ -711,59 +768,121 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
 		if (ellipse) {
 			priv->figure_list = g_list_append(priv->figure_list, ellipse);
 		}
-    } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
-        switch (event->button) {
-        case 1:
-            if (event->state & GDK_SHIFT_MASK == GDK_SHIFT_MASK) {
-                get_nearest_point_to(x, y, DRAWING_PANE(data), &spline, &point);
-                if (point != NULL) {
-                    if (g_list_length(spline->points) > 1) {
-                        spline->points = g_list_remove(spline->points, point);
-                        spline->need_refresh_pixels = TRUE;
-                        g_free(point);
-                    } else {
-                        clear_list(&spline->points);
-                        clear_list(&spline->pixels);
-                        priv->b_spliens = g_list_remove(priv->b_spliens, spline);
-                        g_free(spline);
-                    }
-                }
-            } else {
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_BEZIER) {
+		switch (event->button) {
+			case 1:
 
-                if (priv->b_spline_points == NULL) {
-                    get_nearest_point_to(x, y, DRAWING_PANE(data), &priv->move_spline, &priv->old_point);
-                }
+				if (priv->created_points == NULL) {
+					get_nearest_point_to(event->x, event->y, DRAWING_PANE(data), priv->bezier_forms, &priv->move_spline, &priv->old_point);
+				}
 
-                if (priv->move_spline == NULL) {
-                    point = g_malloc(sizeof(Point));
-                    point->x = x;
-                    point->y = y;
+				if (priv->old_point == NULL) {
+					point = g_malloc(sizeof(Point));
+					point->x = x;
+					point->y = y;
 
-                    priv->b_spline_points = g_list_append(priv->b_spline_points, point);
+					priv->created_points = g_list_append(priv->created_points, point);
 
-                    clear_list(&priv->b_spline_pixels);
+					if (g_list_length(priv->created_points) == 4) {
+						Spline *spline;
 
-                    priv->b_spline_pixels = get_b_spline_figure(priv->b_spline_points, STEP);
-                }
-            }
+						spline = g_malloc(sizeof(Spline));
 
-            break;
-        case 3:
-            if (priv->b_spline_points != NULL) {
-                spline = g_malloc(sizeof(Spline));
+						spline->points = priv->created_points;
+						spline->need_refresh_pixels = TRUE;
 
-                spline->need_refresh_pixels = FALSE;
-                spline->pixels = priv->b_spline_pixels;
-                spline->points = priv->b_spline_points;
+						priv->bezier_forms = g_list_append(priv->bezier_forms, spline);
 
-                priv->b_spliens = g_list_append(priv->b_spliens, spline);
-                priv->b_spline_pixels = NULL;
-                priv->b_spline_points = NULL;
-            }
-            break;
-        }
+						priv->created_points = NULL;
+					}
+				}
 
-    }
+				break;
+			case 3:
+				clear_list(&priv->created_points);
+				break;
+		}
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HERMIT) {
+		switch (event->button) {
+			case 1:
+
+				if (priv->created_points == NULL) {
+					get_nearest_point_to(event->x, event->y, DRAWING_PANE(data), priv->hermitian_forms, &priv->move_spline, &priv->old_point);
+				}
+
+				if (priv->old_point == NULL) {
+					point = g_malloc(sizeof(Point));
+					point->x = x;
+					point->y = y;
+
+					priv->created_points = g_list_append(priv->created_points, point);
+
+					if (g_list_length(priv->created_points) == 4) {
+						Spline *spline;
+
+						spline = g_malloc(sizeof(Spline));
+
+						spline->points = priv->created_points;
+						spline->need_refresh_pixels = TRUE;
+
+						priv->hermitian_forms = g_list_append(priv->hermitian_forms, spline);
+
+						priv->created_points = NULL;
+					}
+				}
+
+				break;
+			case 3:
+				clear_list(&priv->created_points);
+				break;
+		}
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
+		switch (event->button) {
+			case 1:
+				if (event->state & GDK_SHIFT_MASK == GDK_SHIFT_MASK) {
+					get_nearest_point_to(event->x, event->y, DRAWING_PANE(data), priv->b_spliens, &spline, &point);
+					if (point != NULL) {
+						if (g_list_length(spline->points) > 1) {
+							spline->points = g_list_remove(spline->points, point);
+							spline->need_refresh_pixels = TRUE;
+							g_free(point);
+						} else {
+							clear_list(&spline->points);
+							clear_list(&spline->pixels);
+							priv->b_spliens = g_list_remove(priv->b_spliens, spline);
+							g_free(spline);
+						}
+					}
+				} else {
+
+					if (priv->created_points == NULL) {
+						get_nearest_point_to(event->x, event->y, DRAWING_PANE(data), priv->b_spliens, &priv->move_spline, &priv->old_point);
+					}
+
+					if (priv->move_spline == NULL) {
+						point = g_malloc(sizeof(Point));
+						point->x = x;
+						point->y = y;
+
+						priv->created_points = g_list_append(priv->created_points, point);
+					}
+				}
+
+				break;
+			case 3:
+				if (priv->created_points != NULL) {
+					spline = g_malloc(sizeof(Spline));
+
+					spline->need_refresh_pixels = TRUE;
+					spline->points = priv->created_points;
+
+					priv->b_spliens = g_list_append(priv->b_spliens, spline);
+					priv->created_points = NULL;
+				}
+				break;
+		}
+
+	}
 
 	gtk_widget_queue_draw(widget);
 
