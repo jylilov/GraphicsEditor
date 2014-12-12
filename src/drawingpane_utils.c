@@ -244,6 +244,62 @@ GList *get_hyperbole_figure(gint a, gint b, gint x0, gint y0, gint width, gint h
 	return list;
 }
 
+GList *get_ellipse_figure(gint a, gint b, gint x0, gint y0, gint width, gint height)
+{
+	GList *list;
+	gint x, y;
+	gint e1, e2, e3;
+	gboolean in_zone;
+
+	//TODO more correct condition
+	if (a > width && b > height) {
+		in_zone = FALSE;
+		in_zone &= SQR(x0) * SQR(b) + SQR(y0) * SQR(a) < SQR(a) * SQR(b);
+		in_zone &= SQR(x0 + width) * SQR(b) + SQR(y0) * SQR(a) < SQR(a) * SQR(b);
+		in_zone &= SQR(x0 + width) * SQR(b) + SQR(y0 + height) / SQR(a) < SQR(a) * SQR(b);
+		in_zone &= SQR(x0) * SQR(b) + SQR(y0 + height) * SQR(a) < SQR(a) * SQR(b);
+
+		if (!in_zone) {
+			return NULL;
+		}
+	}
+
+	list = NULL;
+
+	x = 0;
+	y = b;
+
+	add_pixel_in_zone(&list, 0, b, x0, y0, width, height);
+	add_pixel_in_zone(&list, 0, -b, x0, y0, width, height);
+
+	while (TRUE) {
+		e1 = abs(SQR(x + 1) * SQR(b) + SQR(y - 1) * SQR(a) - SQR(a) * SQR(b));
+		e2 = abs(SQR(x + 1) * SQR(b) + SQR(y) * SQR(a) - SQR(a) * SQR(b));
+		e3 = abs(SQR(x) * SQR(b) + SQR(y - 1) * SQR(a) - SQR(a) * SQR(b));
+
+		if (e1 < e2 && e1 < e3) {
+			++x;
+			--y;
+		} else if (e2 < e3) {
+			++x;
+		} else {
+			--y;
+		}
+
+		if (y == 0) break;
+
+		add_pixel_in_zone(&list, x, y, x0, y0, width, height);
+		add_pixel_in_zone(&list, x, -y, x0, y0, width, height);
+		add_pixel_in_zone(&list, -x, y, x0, y0, width, height);
+		add_pixel_in_zone(&list, -x, -y, x0, y0, width, height);
+	}
+
+	add_pixel_in_zone(&list, a, 0, x0, y0, width, height);
+	add_pixel_in_zone(&list, -a, 0, x0, y0, width, height);
+
+	return list;
+}
+
 static mat4 b_spline = {
 		{-1, 3, -3, 1},
 		{3, -6, 0, 4},

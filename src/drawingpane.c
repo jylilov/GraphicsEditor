@@ -74,6 +74,7 @@ static GraphicsEditorDrawingModeType get_drawing_mode(DrawingPane *pane);
 static gboolean is_line_drawing_mode(GraphicsEditorDrawingModeType mode);
 static GList *get_line_figure(GraphicsEditorDrawingModeType drawing_mode, gint x1, gint y1, gint x2, gint y2);
 static GList *get_hyperbole(DrawingPane *pane);
+static GList *get_ellipse(DrawingPane *pane);
 static void draw_net(cairo_t* cr, DrawingPane *pane);
 static void draw_coordinate_axis(cairo_t *cr, DrawingPane *pane);
 static void draw_point(cairo_t *cr, Point *point, Color color, DrawingPane *pane);
@@ -701,10 +702,15 @@ drawing_area_button_press_event_handler (GtkWidget *widget, GdkEventButton  *eve
         }
 
     } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_HYPERBOLE) {
-        GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
-        if (hyperbole) {
-            priv->figure_list = g_list_append(priv->figure_list, hyperbole);
-        }
+		GList *hyperbole = get_hyperbole(DRAWING_PANE(data));
+		if (hyperbole) {
+			priv->figure_list = g_list_append(priv->figure_list, hyperbole);
+		}
+	} else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_ELLIPSE) {
+		GList *ellipse = get_ellipse(DRAWING_PANE(data));
+		if (ellipse) {
+			priv->figure_list = g_list_append(priv->figure_list, ellipse);
+		}
     } else if (drawing_mode == GRAPHICSEDITOR_DRAWING_MODE_B_SPLINE) {
         switch (event->button) {
         case 1:
@@ -916,6 +922,64 @@ get_hyperbole(DrawingPane *pane)
 
 	if (result == GTK_RESPONSE_OK) {
 		figure = get_hyperbole_figure(a, b,
+				- pane->priv->width / 2, - pane->priv->height / 2,
+				pane->priv->width, pane->priv->height);
+	}
+
+	return figure;
+}
+
+
+//TODO Lines 2nd order dialog
+static GList *
+get_ellipse(DrawingPane *pane)
+{
+	GList *figure;
+	GtkWidget *dialog;
+	GtkWidget *grid;
+	GtkWidget *content_area;
+	GtkWidget *spin_button_a;
+	GtkWidget *spin_button_b;
+	GtkWidget *label_a;
+	GtkWidget *label_b;
+	gint a;
+	gint b;
+
+	figure = NULL;
+
+	dialog = gtk_dialog_new_with_buttons("Add ellipse",
+			GTK_WINDOW(pane->priv->window),
+			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			"OK", GTK_RESPONSE_OK,
+			"Cancel", GTK_RESPONSE_CANCEL,
+			NULL);
+
+	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+
+	content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+	grid = gtk_grid_new();
+
+	label_a = gtk_label_new("Ellipse parameter \"a\" :");
+	label_b = gtk_label_new("Ellipse parameter \"b\" :");
+	spin_button_a = gtk_spin_button_new_with_range(1, 10000, 100);
+	spin_button_b = gtk_spin_button_new_with_range(1, 10000, 100);
+
+	gtk_grid_attach(GTK_GRID(grid), label_a, 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(grid), spin_button_a, 1, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(grid), label_b, 0, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(grid), spin_button_b, 1, 1, 1, 1);
+
+	gtk_container_add(GTK_CONTAINER(content_area), grid);
+	gtk_widget_show_all(GTK_WIDGET(grid));
+
+	gint result = gtk_dialog_run(GTK_DIALOG(dialog));
+	a = round(gtk_spin_button_get_value(GTK_SPIN_BUTTON(spin_button_a)));
+	b = round(gtk_spin_button_get_value(GTK_SPIN_BUTTON(spin_button_b)));
+	gtk_widget_destroy(dialog);
+
+	if (result == GTK_RESPONSE_OK) {
+		figure = get_ellipse_figure(a, b,
 				- pane->priv->width / 2, - pane->priv->height / 2,
 				pane->priv->width, pane->priv->height);
 	}

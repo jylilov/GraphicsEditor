@@ -21,6 +21,7 @@ GList *get_dda_line_figure(gint x1, gint y1, gint x2, gint y2);
 GList *get_bresenham_line_figure(gint x1, gint y1, gint x2, gint y2);
 GList *get_wu_line_figure(gint x1, gint y1, gint x2, gint y2);
 GList *get_hyperbole_figure(gint a, gint b, gint x0, gint y0, gint width, gint height);
+GList *get_ellipse_figure(gint a, gint b, gint x0, gint y0, gint width, gint height);
 GList *get_b_spline_figure(GList *points, gdouble step);
 
 G_END_DECLS
