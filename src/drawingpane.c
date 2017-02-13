@@ -3,7 +3,6 @@
 #include "graphicseditor_utils.h"
 
 #include <math.h>
-#include <ftlist.h>
 
 #define STEP 0.001
 
